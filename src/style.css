@@ -1,0 +1,90 @@
+:root {
+  --bg: #07070b;
+  --surface: rgba(255, 255, 255, .035);
+  --surface-2: rgba(255, 255, 255, .06);
+  --text: #f4f2fb;
+  --soft: #c9c7d6;
+  --muted: #8a8a98;
+  --faint: #55556a;
+  --line: rgba(244, 242, 251, .14);
+  --line-strong: rgba(244, 242, 251, .45);
+  --violet: #8b6bff;
+  --pink: #ff2d8a;
+  --win: #7ee0b5;
+  --loss: #ff5f8a;
+  --c: #8b6bff; /* current opponent's glow colour, set at runtime */
+  --serif: 'Cinzel', 'Times New Roman', serif;
+  --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body { height: 100%; overflow: hidden; }
+#app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+
+body {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(700px 420px at 50% 48%, rgba(122, 92, 255, .18), transparent 70%),
+    radial-gradient(500px 300px at 50% 62%, rgba(255, 45, 138, .08), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+/* in-game the glow follows the opponent's colour */
+body.ingame {
+  background:
+    radial-gradient(900px 600px at 30% 50%, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%),
+    var(--bg);
+}
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 900; text-transform: uppercase; letter-spacing: .04em; line-height: 1; }
+.display { font-family: var(--serif); font-weight: 900; text-transform: uppercase; }
+
+/* main page: red poster */
+body.home {
+  /* colours come from the featured rival (set by HomeView); red is the default */
+  background:
+    radial-gradient(1200px 800px at 35% 45%, var(--home-light, #e0301f), transparent 70%),
+    radial-gradient(900px 700px at 100% 100%, var(--home-dark, #8e0f0c), transparent 70%),
+    var(--home-base, #c41e16);
+}
+
+/* Buttons: tracked serif text, thin outline */
+button {
+  font: inherit; font-family: var(--serif); font-weight: 700; font-size: 13px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--text); cursor: pointer; background: transparent; border: 1px solid var(--line-strong); border-radius: 0; padding: 10px 18px;
+  transition: background .2s, color .2s, border-color .2s, box-shadow .2s;
+}
+button:hover:not(:disabled) { background: var(--text); color: var(--bg); border-color: var(--text); }
+button:disabled { opacity: .3; cursor: not-allowed; }
+button.ghost { border-color: var(--line); color: var(--soft); }
+button.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line-strong); }
+button:focus-visible { outline: 1px solid var(--violet); outline-offset: 3px; }
+
+input {
+  font: inherit; color: var(--text); width: 100%;
+  background: rgba(0, 0, 0, .35); border: 1px solid var(--line); border-radius: 0; padding: 12px 14px;
+}
+input::placeholder { color: var(--faint); }
+input:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 3px rgba(139, 107, 255, .2); }
+
+.glass { background: var(--surface); border: 1px solid var(--line); backdrop-filter: blur(12px); }
+.muted { color: var(--muted); }
+code { background: var(--surface-2); padding: 1px 6px; font-size: .92em; }
+
+/* small tracked caption */
+.caption { font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .12); }
+::-webkit-scrollbar-track { background: transparent; }
+
+body.quake #app { animation: quake .6s; }
+@keyframes quake {
+  10% { transform: translate(-10px, 6px) }
+  30% { transform: translate(10px, -8px) }
+  50% { transform: translate(-8px, -6px) }
+  70% { transform: translate(8px, 8px) }
+}
