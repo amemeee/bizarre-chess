@@ -1,18 +1,37 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import * as sound from '../lib/sound'
 
 const props = defineProps({
-  char: Object, face: Object, bubble: String, charge: Number, status: String, canUndo: Boolean,
+  char: Object, face: Object, bubble: String, charge: Number, status: String, canUndo: Boolean, canSurrender: Boolean,
+  losing: { type: Boolean, default: false }, // far behind in material: a character with a `mask` mood puts it on (Kyo)
   side: { type: String, default: '' },          // 'White' / 'Black' in spectate mode; empty in a duel
-  controls: { type: Boolean, default: true },   // show Undo / Opponents
+  controls: { type: Boolean, default: true },   // show Undo / Surrender
   active: { type: Boolean, default: false },    // spectate: it's this side's turn
 })
-defineEmits(['undo', 'menu'])
+const emit = defineEmits(['undo', 'surrender'])
+
+// Surrender asks first: the first click arms it, a second click within 3s resigns
+const confirming = ref(false)
+let confirmTimer = null
+function surrender() {
+  clearTimeout(confirmTimer)
+  if (confirming.value) { confirming.value = false; emit('surrender'); return }
+  confirming.value = true
+  confirmTimer = setTimeout(() => { confirming.value = false }, 3000)
+}
+onUnmounted(() => clearTimeout(confirmTimer))
 
 // Characters share one portrait; if it fails to load (or none exists) the mood emoji is shown.
 const failed = ref(false)
-watch(() => props.char?.id, () => { failed.value = false })
+watch(() => props.char?.id, () => {
+  failed.value = false
+  for (const src of Object.values(props.char?.moods ?? {})) { const im = new Image(); im.src = src } // preload, so mood swaps are instant
+}, { immediate: true })
+/* The portrait for the current mood. A character with a `mask` mood (Kyo) hides behind it while losing badly;
+   once actually defeated, the `sad` face takes over (Kyo's mask breaks into the silhouette), and his ultimate face still shows. */
+const masked = computed(() => !!props.char?.moods?.mask && props.losing && !['sad', 'ult'].includes(props.face?.mood))
+const portrait = computed(() => (masked.value ? props.char.moods.mask : props.char?.moods?.[props.face?.mood] ?? props.char?.img))
 const MOOD = { idle: 'Calm', happy: 'Pleased', angry: 'Irritated', sad: 'Defeated', shock: 'Shaken', ult: 'Ultimate' }
 
 /* The character voices every new line. The line is matched to the moment it belongs to
@@ -41,9 +60,10 @@ watch(() => props.bubble, text => { if (text) sound.voice(props.char?.id, moment
 <template>
   <aside :class="{ spectate: !!side, active }">
     <div class="portrait" :class="[face.anim, face.mood]" :key="face.n">
-      <img v-if="char.img && !failed" :src="char.img" alt="" :class="{ color: char.art === 'color' }" :style="{ transformOrigin: char.focus, objectPosition: char.focus }" @error="failed = true">
+      <span v-if="char.flirting || char.flustered" class="hearts" :class="{ flustered: char.flustered }" aria-hidden="true"><i v-for="k in 5" :key="k" :style="{ '--k': k }" /></span>
+      <img v-if="char.img && !failed" :src="portrait" alt="" :class="{ color: char.art === 'color', alter: char.alter, mooded: portrait !== char.img }" :style="{ transformOrigin: char.focus, objectPosition: char.focus }" @error="failed = true">
       <span v-else class="emoji">{{ char.emoji[face.mood] }}</span>
-      <span class="mood caption">{{ MOOD[face.mood] }}</span>
+      <span class="mood caption">{{ masked ? 'Masked' : MOOD[face.mood] }}</span>
     </div>
 
     <div class="id">
@@ -67,7 +87,7 @@ watch(() => props.bubble, text => { if (text) sound.voice(props.char?.id, moment
 
     <div v-if="controls" class="btns">
       <button class="ghost" :disabled="!canUndo" @click="$emit('undo')">Undo</button>
-      <button class="ghost" @click="$emit('menu')">Opponents</button>
+      <button class="ghost surrender" :class="{ confirming }" :disabled="!canSurrender" @click="surrender">{{ confirming ? 'Really resign?' : 'Surrender' }}</button>
     </div>
   </aside>
 </template>
@@ -83,6 +103,17 @@ aside { align-self: center; max-height: 100%; overflow-y: auto; display: flex; f
 .portrait::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 5px; height: 22px; transform: translateX(-50%); background: var(--text); clip-path: polygon(0 0, 100% 0, 50% 100%); }
 .portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: var(--focus, 50% 30%); transform: scale(2); filter: invert(1); mix-blend-mode: screen; }
 .portrait img.color { filter: none; mix-blend-mode: normal; transform: scale(1.25); transition: filter .3s; }
+/* an Alter (mirror match): the portrait is a photographic negative */
+.portrait img.alter { scale: -1 1; filter: grayscale(1) invert(1) contrast(1.1) !important; }
+/* Rai flirting: little lightning hearts float up around his portrait */
+.hearts { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.hearts i { position: absolute; bottom: -10%; left: calc(var(--k) * 17% - 8%); width: 14%; aspect-ratio: 1; background: url(/assets/fx/rai/heart.webp) center / contain no-repeat; filter: drop-shadow(0 0 6px #3d7bff); opacity: 0; animation: heartup 3.2s ease-in calc(var(--k) * .6s) infinite; }
+/* AI-0 facing Rai: teal hearts that glitch as they rise */
+.hearts.flustered i { filter: hue-rotate(-50deg) saturate(1.4) drop-shadow(0 0 6px #00e5c7); animation-name: heartglitch; }
+@keyframes heartglitch { 0% { opacity: 0; transform: translateY(0) scale(.6) } 15% { opacity: 1 } 40% { transform: translateY(-160%) translateX(8%) } 42% { transform: translateY(-170%) translateX(-10%) skewX(25deg); opacity: .4 } 45% { transform: translateY(-180%); opacity: 1 } 100% { opacity: 0; transform: translateY(-420%) scale(1) } }
+@keyframes heartup { 0% { opacity: 0; transform: translateY(0) scale(.6) } 15% { opacity: 1 } 80% { opacity: .9 } 100% { opacity: 0; transform: translateY(-420%) scale(1) rotate(12deg) } }
+/* a portrait drawn for this mood already shows it: no tint on top */
+.portrait img.color.mooded { filter: none !important; }
 /* colour art shows mood through a tint instead of the background */
 .portrait.angry img.color, .portrait.shock img.color { filter: saturate(1.3) contrast(1.05); }
 .portrait.sad img.color { filter: saturate(.5) brightness(.85); }
@@ -133,6 +164,8 @@ aside.spectate.active .status i { background: var(--c); box-shadow: 0 0 10px var
 
 .btns { display: flex; gap: 10px; }
 .btns button { flex: 1; padding: 10px; font-size: 11px; }
+.surrender:hover:not(:disabled) { border-color: color-mix(in srgb, var(--loss) 60%, transparent); color: #fff; }
+.surrender.confirming, .surrender.confirming:hover:not(:disabled) { border-color: var(--loss); color: #fff; background: color-mix(in srgb, var(--loss) 22%, transparent); }
 
 @media (max-width: 900px) {
   aside { align-self: start; }

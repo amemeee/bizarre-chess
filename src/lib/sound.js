@@ -1,7 +1,7 @@
 /* Game audio.
    - Sound effects are synthesised with the Web Audio API (no files, no licences).
      Each character's moves, captures and ultimates have their own flavour.
-   - Music is optional: put tracks at public/assets/music/<name>.mp3 (home, mio, kaito, yuki, ren, noa).
+   - Music is optional: put tracks at public/assets/music/<name>.mp3 (home, mio, haru, kaito, jun, yuki, ren, sena, noa, shion, kyo).
      A missing track simply stays silent.
    Browsers only allow audio after the player has interacted with the page, so the audio
    context is created/resumed on the first pointer or key press. */
@@ -35,9 +35,44 @@ function ac() {
   if (ctx.state === 'suspended') ctx.resume()
   return ctx
 }
+/* ---------- recorded samples ----------
+   Real recordings for a few moves, loaded once the audio is unlocked. Each sample is a file of several takes
+   (start, end in seconds); a random take plays each time, so it never repeats exactly. Until a file has loaded
+   (or if it can't be), the synthesized sound is used instead. */
+const SAMPLES = {
+  // Kyo's movement: iron chain rattles (freesound community, "chain"), the 12 strongest takes
+  // Kyo's capture: chains wrap the piece and lock tight (kuzu420, "chain locker"), its three lock-ups
+  lock: { url: '/assets/sfx/kyo-lock.mp3', vol: 1, takes: [[0.64, 1.9], [3.38, 4.3], [4.5, 5.86]] },
+  chain: { url: '/assets/sfx/kyo-chain.mp3', vol: 0.95, takes: [[0.1, 0.78], [1.64, 2.14], [2.68, 3.1], [3.6, 4.24], [4.86, 5.24], [7.12, 7.94], [8.8, 9.18], [9.82, 10.12], [13.46, 13.92], [14.6, 15.22], [15.78, 16.36], [18.24, 18.62]] },
+}
+const buffers = {}
+function loadSamples() {
+  const c = ac()
+  if (!c) return
+  for (const [name, s] of Object.entries(SAMPLES)) {
+    if (buffers[name] !== undefined) continue
+    buffers[name] = null // loading
+    fetch(s.url).then(r => r.arrayBuffer()).then(b => c.decodeAudioData(b)).then(buf => { buffers[name] = buf }).catch(() => { buffers[name] = false })
+  }
+}
+/** Play a random take of a loaded sample; false if it isn't ready (so the caller can synthesize instead). */
+function playSample(name, delay = 0) {
+  const buf = buffers[name], s = SAMPLES[name], c = ctx
+  if (!buf || !c || !master) return false
+  const [a, b] = s.takes[Math.floor(Math.random() * s.takes.length)]
+  const src = c.createBufferSource(), g = c.createGain(), t = c.currentTime + delay, len = b - a
+  src.buffer = buf
+  g.gain.setValueAtTime(s.vol, t)
+  g.gain.setValueAtTime(s.vol, t + Math.max(0, len - 0.08))
+  g.gain.linearRampToValueAtTime(0, t + len) // fade the tail so takes never click
+  src.connect(g); g.connect(master)
+  src.start(t, a, len)
+  return true
+}
+
 // unlock audio on the first interaction
 if (typeof window !== 'undefined') {
-  const unlock = () => { ac(); music.resume() }
+  const unlock = () => { ac(); loadSamples(); music.resume() }
   window.addEventListener('pointerdown', unlock, { once: true })
   window.addEventListener('keydown', unlock, { once: true })
 }
@@ -92,6 +127,33 @@ const MOVES = {
   // Noa: a plucked string as the piece is lifted, another as it lands
   puppet: () => { tone({ freq: 392, type: 'triangle', dur: 0.4, vol: 0.14 }); tone({ freq: 294, type: 'triangle', dur: 0.5, vol: 0.12, delay: 0.5 }) },
   // Ren: tick, tock
+  // Haru: a soft rustle of leaves and a gentle chime as it grows
+  grow: () => { noise({ dur: 0.4, vol: 0.09, freq: 2200, sweepTo: 1200, q: 0.6 }); chord([523, 784], { dur: 0.5, vol: 0.05, stagger: 0.08, type: 'sine', delay: 0.3 }) },
+  // Sena: a cold glassy slide and a crisp ting
+  glide: () => { noise({ dur: 0.3, vol: 0.07, freq: 5000, sweepTo: 7000, q: 2 }); tone({ freq: 2637, dur: 0.6, vol: 0.05, delay: 0.28 }) },
+  // Jun: a coin flip, then a clatter of chips
+  flip: () => { tone({ freq: 1400, slideTo: 2200, dur: 0.25, vol: 0.05, type: 'triangle' }); for (let i = 0; i < 4; i++) noise({ dur: 0.02, vol: 0.18, freq: 3200 - i * 300, q: 5, delay: 0.42 + i * 0.05 }) },
+  // Shion: a wet, bubbling slither
+  ooze: () => { noise({ dur: 0.5, vol: 0.1, freq: 500, sweepTo: 900, q: 1.2, kind: 'lowpass' }); for (let i = 0; i < 4; i++) tone({ freq: 300 + Math.random() * 300, dur: 0.06, vol: 0.05, type: 'sine', delay: 0.15 + i * 0.11 }) },
+  // Kyo: a recorded chain rattle (synthesized until it has loaded), then a heavy iron thud as the piece slams down
+  drag: () => {
+    if (!playSample('chain')) for (let i = 0; i < 6; i++) noise({ dur: 0.03, vol: 0.16, freq: 2400 + Math.random() * 1200, q: 4, delay: i * 0.06 })
+    tone({ freq: 60, slideTo: 35, dur: 0.35, vol: 0.4, delay: 0.42 }); noise({ dur: 0.18, vol: 0.2, freq: 260, delay: 0.42 })
+  },
+  // Shin & Akane: a soft breath of mist, then a low shimmer as the piece re-forms
+  mist: () => { noise({ dur: 0.7, vol: 0.07, freq: 900, sweepTo: 400, q: 0.4, kind: 'lowpass', attack: 0.15 }); chord([622, 932], { dur: 0.6, vol: 0.035, stagger: 0.1, type: 'sine', delay: 0.45 }) },
+  // Akane: a soft, high glint
+  blink: () => { tone({ freq: 1760, slideTo: 2640, dur: 0.12, vol: 0.05, type: 'sine' }); tone({ freq: 2640, dur: 0.25, vol: 0.04, type: 'sine', delay: 0.25 }) },
+  // Yuki: a hush of snow and a tiny chime
+  snow: () => { noise({ dur: 0.6, vol: 0.05, freq: 6000, q: 0.5, attack: 0.15 }); chord([2093, 2637], { dur: 0.4, vol: 0.03, stagger: 0.07, type: 'sine', delay: 0.5 }) },
+  // Rai: a sharp electric crack
+  bolt: () => { noise({ dur: 0.12, vol: 0.2, freq: 5000, q: 1.5 }); tone({ freq: 1800, slideTo: 300, dur: 0.18, vol: 0.06, type: 'sawtooth' }); noise({ dur: 0.08, vol: 0.12, freq: 2500, q: 3, delay: 0.2 }) },
+  // Erika: a soft patter and a drip as it lands
+  rain: () => { noise({ dur: 0.5, vol: 0.06, freq: 4000, q: 0.6, attack: 0.1 }); tone({ freq: 1400, slideTo: 700, dur: 0.12, vol: 0.06, type: 'sine', delay: 0.35 }) },
+  // Melati: a plucked gold thread and a light chime
+  weave: () => { tone({ freq: 660, type: 'triangle', dur: 0.4, vol: 0.08 }); chord([988, 1319], { dur: 0.5, vol: 0.035, stagger: 0.08, type: 'sine', delay: 0.35 }) },
+  // AI-0: digital blips
+  glitch: () => { for (let i = 0; i < 4; i++) tone({ freq: 400 + Math.random() * 1600, dur: 0.04, vol: 0.06, type: 'square', delay: i * 0.05 }); tone({ freq: 1760, dur: 0.08, vol: 0.05, type: 'square', delay: 0.3 }) },
   time: () => { noise({ dur: 0.025, vol: 0.25, freq: 4200, q: 6 }); noise({ dur: 0.025, vol: 0.22, freq: 2600, q: 6, delay: 0.18 }); tone({ freq: 660, dur: 0.5, vol: 0.05, delay: 0.3 }) },
 }
 export const move = style => (MOVES[style] ?? MOVES.default)()
@@ -99,6 +161,7 @@ export const move = style => (MOVES[style] ?? MOVES.default)()
 /* ---------- landing marks ---------- */
 export function trail(kind) {
   if (kind === 'ice') chord([1319, 1760, 2093], { dur: 0.6, vol: 0.05, stagger: 0.04 }) // glassy frost chime
+  if (kind === 'bloom') chord([659, 880, 1047], { dur: 0.7, vol: 0.035, stagger: 0.06, type: 'sine', delay: 0.2 })
   if (kind === 'crack') { tone({ freq: 70, slideTo: 40, dur: 0.3, vol: 0.3 }); noise({ dur: 0.25, vol: 0.15, freq: 500, q: 0.6 }) }
 }
 
@@ -110,12 +173,31 @@ const CAPTURES = {
   yank: () => { tone({ freq: 220, type: 'triangle', dur: 0.2, vol: 0.18 }); noise({ dur: 0.35, vol: 0.12, freq: 800, sweepTo: 4000, delay: 0.15 }) },
   sand: () => { noise({ dur: 1.2, vol: 0.12, freq: 2500, sweepTo: 600, q: 0.4, kind: 'lowpass', attack: 0.2 }) },
   knockout: () => { tone({ freq: 80, slideTo: 40, dur: 0.18, vol: 0.4 }); noise({ dur: 0.1, vol: 0.3, freq: 900 }); tone({ freq: 1320, dur: 0.5, vol: 0.07, delay: 0.06 }) },
+  // Kyo: a recorded chain lock-up as the chains wrap the piece (synthesized crush until it has loaded)
+  crush: () => { if (!playSample('lock', 0.3)) CAPTURES.crushSynth() },
+  crushSynth: () => { for (let i = 0; i < 4; i++) noise({ dur: 0.03, vol: 0.14, freq: 2600, q: 4, delay: i * 0.05 }); tone({ freq: 90, slideTo: 40, dur: 0.3, vol: 0.35, delay: 0.25 }); noise({ dur: 0.2, vol: 0.25, freq: 1500, q: 0.8, delay: 0.3 }) },
+  dissolve: () => { noise({ dur: 0.9, vol: 0.12, freq: 1200, sweepTo: 300, q: 0.6 }); for (let i = 0; i < 5; i++) tone({ freq: 400 + Math.random() * 500, dur: 0.08, vol: 0.04, type: 'sine', delay: 0.1 + i * 0.12 }) },
+  wilt: () => { tone({ freq: 440, slideTo: 220, dur: 0.9, vol: 0.06, type: 'sine' }); noise({ dur: 0.8, vol: 0.06, freq: 1500, sweepTo: 600, q: 0.5, delay: 0.2 }) },
+  shatter: () => { noise({ dur: 0.04, vol: 0.3, freq: 6000, q: 1 }); chord([2349, 3136, 3520], { dur: 0.4, vol: 0.05, stagger: 0.02, delay: 0.03 }); noise({ dur: 0.35, vol: 0.18, freq: 4500, q: 1, delay: 0.06 }) },
+  cardflip: () => { noise({ dur: 0.06, vol: 0.2, freq: 2500, q: 1.5 }); noise({ dur: 0.05, vol: 0.15, freq: 1800, q: 1.5, delay: 0.12 }); tone({ freq: 330, slideTo: 165, dur: 0.4, vol: 0.06, type: 'triangle', delay: 0.15 }) },
+  // Shin & Akane: the captured piece fades into mist with a falling sigh
+  vanish: () => { noise({ dur: 1.1, vol: 0.1, freq: 1600, sweepTo: 250, q: 0.5, kind: 'lowpass', attack: 0.1 }); tone({ freq: 466, slideTo: 233, dur: 0.9, vol: 0.04, type: 'sine', delay: 0.1 }) },
   poof: () => { noise({ dur: 0.3, vol: 0.18, freq: 900, sweepTo: 300, q: 0.6 }); chord([1568, 2093], { dur: 0.4, vol: 0.04, stagger: 0.06, delay: 0.1 }) },
 }
 export const capture = kind => (CAPTURES[kind] ?? CAPTURES.capture)()
 
 /* ---------- moments ---------- */
 // a heartbeat when a king is in check
+/** You lost a piece (tier 1 pawn … 4 queen): a thud that gets heavier, then for a queen a falling minor chord over a heartbeat. */
+export function loss(tier = 1) {
+  tone({ freq: 120 - tier * 15, slideTo: 45, dur: 0.25 + tier * 0.08, vol: 0.22 + tier * 0.06 })
+  if (tier >= 2) noise({ dur: 0.2 + tier * 0.05, vol: 0.12 + tier * 0.03, freq: 240, q: 0.7, kind: 'lowpass' })
+  if (tier >= 3) tone({ freq: 55, dur: 0.9, vol: 0.18, type: 'sine', delay: 0.08 }) // a low drone under it
+  if (tier >= 4) {
+    chord([392, 311, 262, 196], { dur: 1.1, vol: 0.05, stagger: 0.16, type: 'triangle', delay: 0.25 }) // G Eb C G: falling
+    tone({ freq: 62, dur: 0.16, vol: 0.42, delay: 0.9 }); tone({ freq: 58, dur: 0.2, vol: 0.34, delay: 1.12 }) // heartbeat
+  }
+}
 export function check() { tone({ freq: 62, dur: 0.16, vol: 0.4 }); tone({ freq: 58, dur: 0.2, vol: 0.32, delay: 0.22 }) }
 export function ready() { chord([660, 990], { dur: 0.5, vol: 0.07, stagger: 0.08 }) } // an ultimate meter just filled
 export function ui() { noise({ dur: 0.03, vol: 0.12, freq: 2400, q: 3 }) }
@@ -127,6 +209,11 @@ const STINGS = {
   yuki: () => chord([1047, 1319, 1568, 2093, 2637], { dur: 1.6, vol: 0.045, stagger: 0.09 }),
   ren: () => { for (let i = 0; i < 6; i++) noise({ dur: 0.02, vol: 0.2, freq: 3600, q: 6, delay: i * (0.22 - i * 0.025) }); tone({ freq: 98, dur: 2, vol: 0.25, delay: 0.85, type: 'triangle' }) },
   noa: () => chord([311, 330, 466, 494], { dur: 1.4, vol: 0.07, stagger: 0.12, type: 'triangle' }),
+  haru: () => { chord([392, 494, 587, 784, 988], { dur: 1.3, vol: 0.06, stagger: 0.1, type: 'sine' }); noise({ dur: 0.9, vol: 0.06, freq: 1800, sweepTo: 4000, q: 0.6 }) },
+  sena: () => { chord([1568, 1661, 2349], { dur: 1, vol: 0.05, stagger: 0.03 }); tone({ freq: 82, slideTo: 62, dur: 1.2, vol: 0.3, type: 'triangle', delay: 0.3 }) },
+  shion: () => { for (let i = 0; i < 6; i++) tone({ freq: 300 + i * 90, slideTo: 500 + i * 120, dur: 0.18, vol: 0.05, type: 'sine', delay: i * 0.12 }); noise({ dur: 0.9, vol: 0.07, freq: 900, sweepTo: 300, q: 0.7, delay: 0.3 }) },
+  kyo: () => { tone({ freq: 55, slideTo: 41, dur: 1.6, vol: 0.4, type: 'sawtooth', cutoff: 400 }); for (let i = 0; i < 5; i++) noise({ dur: 0.08, vol: 0.22, freq: 2600, q: 3, delay: 0.3 + i * 0.11 }); tone({ freq: 82, dur: 1.2, vol: 0.2, type: 'triangle', delay: 0.9 }) },
+  jun: () => { for (let i = 0; i < 7; i++) noise({ dur: 0.03, vol: 0.18, freq: 2200 + i * 150, q: 4, delay: i * 0.09 }); chord([659, 880, 1319], { dur: 0.7, vol: 0.07, stagger: 0.05, type: 'triangle', delay: 0.75 }) },
   you: () => { chord([392, 587, 784], { dur: 1.2, vol: 0.08, stagger: 0.1, type: 'triangle' }); tone({ freq: 98, dur: 1, vol: 0.2 }) },
 }
 export const ultimate = id => (STINGS[id] ?? STINGS.you)()
@@ -147,6 +234,11 @@ const VOICES = {
   yuki:  { base: 430, type: 'sine', gap: 88, vary: 0.1, vol: 0.06, breath: 0.25 },      // soft and gentle
   ren:   { base: 165, type: 'triangle', gap: 76, vary: 0.06, vol: 0.08, breath: 0 },    // low and flat
   noa:   { base: 290, type: 'sine', gap: 98, vary: 0.16, vol: 0.055, breath: 0.45 },   // slow, hushed, breathy
+  haru:  { base: 330, type: 'sine', gap: 84, vary: 0.14, vol: 0.06, breath: 0.2 },      // soft, a little shy
+  sena:  { base: 400, type: 'triangle', gap: 80, vary: 0.05, vol: 0.065, breath: 0.1 }, // crisp and haughty
+  shion: { base: 470, type: 'sine', gap: 70, vary: 0.26, vol: 0.06, breath: 0.15 },     // sing-song, teasing
+  kyo:   { base: 120, type: 'triangle', gap: 104, vary: 0.04, vol: 0.09, breath: 0 },  // very low, slow, flat
+  jun:   { base: 210, type: 'triangle', gap: 52, vary: 0.3, vol: 0.07, breath: 0 },     // quick, sly, swinging
 }
 const FORMANTS = [800, 1150, 1500, 2300, 2700] // rough a / o / e / i / u colours
 

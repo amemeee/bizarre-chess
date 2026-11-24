@@ -1,4 +1,7 @@
+import { VOICES } from './pieceVoices'
+
 /* What chess pieces say in their speech bubbles, by mood.
+   Each set's pieces speak in their owner's voice (pieceVoices.js); these shared lines fill in around them.
    TYPE_LINES adds lines for one kind of piece; those are picked twice as often as the generic ones. */
 export const LINES = {
   afraid: ['Help!', 'Not me!', 'Eep!', 'Cover me!', "I'm too young to be captured!", 'Run!!'],
@@ -22,10 +25,20 @@ export const TYPE_LINES = {
   k: { panic: ['My crown!', 'Somebody DO something!'], cheer: ['Long live me!'], sad: ['My kingdom…'] },
 }
 
-export function lineFor(mood, type) {
+const pick = pool => pool[Math.floor(Math.random() * pool.length)] ?? ''
+
+/** A line for a piece in `mood`. `owner` ('you' or a character id) gives it that set's voice. */
+export function lineFor(mood, type, owner) {
+  const v = VOICES[owner]
+  const own = v?.[mood] ?? []
+  const typed = v?.types?.[type]?.[mood] ?? []
+  if (own.length || typed.length) {
+    // almost always the owner's voice; a shared line only now and then
+    const voiced = [...own, ...typed, ...typed]
+    return Math.random() < 0.9 ? pick(voiced) : pick([...(TYPE_LINES[type]?.[mood] ?? []), ...(LINES[mood] ?? [])]) || pick(voiced)
+  }
   const extra = TYPE_LINES[type]?.[mood] ?? []
-  const pool = [...extra, ...extra, ...(LINES[mood] ?? [])]
-  return pool[Math.floor(Math.random() * pool.length)] ?? ''
+  return pick([...extra, ...extra, ...(LINES[mood] ?? [])])
 }
 
 /* ---- hover reactions ----
@@ -59,7 +72,12 @@ export const HOVER_TYPE_LINES = {
   enemy: { k: ['You will not touch the crown.'], q: ['Kneel.'], n: ['You cannot predict me.'], p: ["I'm small, not weak."] },
 }
 
-export function hoverLineFor(mood, type, own) {
+export function hoverLineFor(mood, type, own, owner) {
+  const h = VOICES[owner]?.hover
+  if (h && Math.random() < 0.8) {
+    const lines = h[mood] ?? h.idle
+    if (lines?.length) return pick(lines)
+  }
   const side = own ? 'own' : 'enemy'
   const byMood = HOVER_LINES[side][mood] ?? HOVER_LINES[side].idle
   // calm pieces sometimes use a line for their piece type

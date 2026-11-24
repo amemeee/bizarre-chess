@@ -4,6 +4,7 @@
    Skip jumps to the end. */
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { CHARS } from '../data/characters'
+import { usePlayer } from '../composables/usePlayer'
 import * as sound from '../lib/sound'
 
 const props = defineProps({
@@ -19,19 +20,25 @@ const i = ref(0)
 const typed = ref('')
 let timer = null
 
-const line = computed(() => props.lines[i.value])
-const who = computed(() => (line.value?.who && line.value.who !== 'narrator' ? CHARS[line.value.who] : null))
+const { hero } = usePlayer()
+const fill = t => t.replaceAll('{name}', hero.value.name)
+const line = computed(() => { const l = props.lines[i.value]; return l && { ...l, text: fill(l.text) } })
+const speaker = id => (id === 'player' ? hero.value : CHARS[id])
+const who = computed(() => (line.value?.who && line.value.who !== 'narrator' ? speaker(line.value.who) : null))
+const noArt = ref({}) // speakers whose art failed to load (your portrait, until it exists)
 const last = computed(() => i.value >= props.lines.length - 1)
 const done = computed(() => typed.value.length >= (line.value?.text.length ?? 0))
 // the most recent character to speak stays on screen while the narrator talks
 const shown = ref(null)
-watch(who, c => { if (c) shown.value = c }, { immediate: true })
+// a line can ask for one of the speaker's mood portraits (`face`), e.g. Kyo losing hope
+watch(who, c => { if (c) shown.value = { ...c, faceImg: c.moods?.[line.value?.face] ?? null } }, { immediate: true })
+watch(() => line.value?.face, f => { if (who.value && shown.value?.id === who.value.id) shown.value = { ...shown.value, faceImg: who.value.moods?.[f] ?? null } })
 
 function type() {
   clearInterval(timer)
   typed.value = ''
   const text = line.value?.text ?? ''
-  if (who.value) sound.voice(who.value.id, null, text)
+  if (who.value && who.value.id !== 'player') sound.voice(who.value.id, null, text)
   let n = 0
   timer = setInterval(() => {
     n += 1
@@ -76,7 +83,11 @@ onUnmounted(() => { window.removeEventListener('keydown', key); clearInterval(ti
 
     <!-- the speaker -->
     <Transition name="art" mode="out-in">
-      <img v-if="shown && !showTitle" :key="shown.id" class="art" :src="shown.full ?? shown.img" :alt="shown.name" draggable="false">
+      <img
+        v-if="shown && !showTitle && shown.img && !noArt[shown.id]" :key="shown.id + (shown.faceImg ?? '')" class="art" :class="{ left: shown.id === 'player' }"
+        :src="shown.faceImg ?? (shown.fullPending ? shown.img : shown.full ?? shown.img)" :alt="shown.name" draggable="false"
+        @error="noArt = { ...noArt, [shown.id]: true }"
+      >
     </Transition>
 
     <!-- the dialogue box -->
@@ -111,6 +122,8 @@ onUnmounted(() => { window.removeEventListener('keydown', key); clearInterval(ti
   mask-image: radial-gradient(ellipse 50% 56% at 50% 46%, #000 52%, transparent 100%);
   filter: drop-shadow(0 0 30px color-mix(in srgb, var(--g) 30%, transparent));
 }
+/* you stand on the left, your rivals on the right */
+.art.left { right: auto; left: 4%; }
 .art-enter-active, .art-leave-active { transition: opacity .35s, transform .35s; }
 .art-enter-from { opacity: 0; transform: translateX(30px); }
 .art-leave-to { opacity: 0; transform: translateX(-20px); }

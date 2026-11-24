@@ -7,7 +7,9 @@ Default sets (green background):
      (the game tints them in each opponent's colour)
 
 A character's own set (used for that character's side only):
-  python tools/cut_pieces.py --set ice <sheet> public/assets/pieces [--key magenta]
+  python tools/cut_pieces.py --set ice <sheet> public/assets/pieces [--key magenta | green-cool] [--order rkq/bpn]
+  --order: the pieces aren't in a neat K Q R / B N P grid: find each piece on its own and read them in this order
+  (top row, then bottom row, left to right; k q r b n p)
   -> public/assets/pieces/ice/K.webp … P.webp, plus K-glow.webp … glow masks
 """
 import sys
@@ -58,7 +60,20 @@ def key_magenta(rgb):
     return out, alpha
 
 
-KEYS = {'green': key_green, 'magenta': key_magenta}
+def key_green_cool(rgb):
+    """Green screen for blue / cyan sets (e.g. glass): like key_green, but only pixels greener than BOTH red and blue
+    count as spill, so blue glass (which has more green than red) keeps its colour."""
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    dom = g - np.maximum(r, b)
+    alpha = 1 - np.clip((dom - 18) / (70 - 18), 0, 1)
+    out = rgb.copy()
+    out[..., 1] = np.minimum(g, np.maximum(r, b) * 1.02)
+    out = _grey_out(out, np.clip((g - np.maximum(r, b) + 5) / 25, 0, 1))
+    out = _grey_out(out, np.clip((0.95 - alpha) / 0.6, 0, 1) * 0.5)
+    return out, alpha
+
+
+KEYS = {'green': key_green, 'green-cool': key_green_cool, 'magenta': key_magenta}
 
 
 def drop_floaters(a, solid):
@@ -104,6 +119,32 @@ def pieces_from(sheet_path, key='green'):
     return found
 
 
+def pieces_auto(sheet_path, key, order):
+    """Find the six pieces anywhere on the sheet (the biggest blobs), split them into a top and bottom row,
+    and name them left to right by `order`, e.g. 'rkq/bpn'. Small stray bits (a lone raindrop) are ignored."""
+    from scipy import ndimage
+    rgb = np.asarray(Image.open(sheet_path).convert('RGB')).astype(np.float32)
+    rgb, alpha = KEYS[key](rgb)
+    solid = alpha > 0.12
+    labels, n = ndimage.label(ndimage.binary_dilation(solid, iterations=6))
+    sizes = ndimage.sum(solid, labels, range(1, n + 1))
+    biggest = sorted(range(1, n + 1), key=lambda i: -sizes[i - 1])[:6]
+    boxes = [ndimage.find_objects((labels == i).astype(int))[0] for i in biggest]
+    cy = lambda b: (b[0].start + b[0].stop) / 2
+    mid = alpha.shape[0] / 2
+    rows = [sorted([b for b in boxes if cy(b) < mid], key=lambda b: b[1].start), sorted([b for b in boxes if cy(b) >= mid], key=lambda b: b[1].start)]
+    names = order.split('/')
+    found = {}
+    for r, row in enumerate(rows):
+        if len(row) != len(names[r]):
+            raise SystemExit(f'expected {len(names[r])} pieces in row {r}, found {len(row)}')
+        for b, t in zip(row, names[r]):
+            lab = labels[b] == biggest[boxes.index(b)]
+            a = np.where(lab, alpha[b], 0)
+            found[t] = (rgb[b], a)
+    return found
+
+
 def place(crop_rgb, crop_a, scale):
     """Scale a crop and drop it on a square transparent canvas, centred, bottom on the baseline."""
     img = Image.fromarray(np.dstack([np.clip(crop_rgb, 0, 255), crop_a * 255]).astype(np.uint8), 'RGBA')
@@ -126,9 +167,9 @@ def glow_mask(piece, threshold=115):
     return Image.fromarray(out.astype(np.uint8), 'RGBA')
 
 
-def cut_set(sheet, key):
+def cut_set(sheet, key, order=None):
     """All six pieces of one sheet, at one shared scale so relative sizes stay as drawn."""
-    found = pieces_from(sheet, key)
+    found = pieces_auto(sheet, key, order) if order else pieces_from(sheet, key)
     scale = min(min(FILL_H * SIZE / c[1].shape[0], FILL_W * SIZE / c[1].shape[1]) for c in found.values())
     return {t: place(rgb, a, scale) for t, (rgb, a) in found.items()}, scale
 
@@ -145,10 +186,10 @@ def main_default(dark, light, out_dir):
             print(color + t.upper(), 'scale %.2f' % scale)
 
 
-def main_set(name, sheet, out_root, key):
+def main_set(name, sheet, out_root, key, order=None):
     out = Path(out_root) / name
     out.mkdir(parents=True, exist_ok=True)
-    pieces, scale = cut_set(sheet, key)
+    pieces, scale = cut_set(sheet, key, order)
     for t, piece in pieces.items():
         piece.save(out / f'{t.upper()}.webp', quality=92, method=6)
         # light sets (ice) only glow in their brightest cores, so use a higher threshold
@@ -159,9 +200,11 @@ def main_set(name, sheet, out_root, key):
 if __name__ == '__main__':
     args = sys.argv[1:]
     if args and args[0] == '--set':
-        key = 'green'
+        key, order = 'green', None
         if '--key' in args:
             i = args.index('--key'); key = args[i + 1]; args = args[:i] + args[i + 2:]
-        main_set(args[1], args[2], args[3], key)
+        if '--order' in args:
+            i = args.index('--order'); order = args[i + 1]; args = args[:i] + args[i + 2:]
+        main_set(args[1], args[2], args[3], key, order)
     else:
         main_default(*args[:3])

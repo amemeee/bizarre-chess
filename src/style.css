@@ -44,11 +44,12 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 900; text-transform: upperc
 
 /* main page: red poster */
 body.home {
-  /* colours come from the featured rival (set by HomeView); red is the default */
+  /* the title screen: near-black, lit by whichever rival is in the spotlight (--home-glow, set by HomeView) */
   background:
-    radial-gradient(1200px 800px at 35% 45%, var(--home-light, #e0301f), transparent 70%),
-    radial-gradient(900px 700px at 100% 100%, var(--home-dark, #8e0f0c), transparent 70%),
-    var(--home-base, #c41e16);
+    radial-gradient(1100px 700px at 70% 40%, color-mix(in srgb, var(--home-glow, #8b6bff) 16%, transparent), transparent 70%),
+    radial-gradient(900px 600px at 15% 60%, color-mix(in srgb, var(--home-glow, #8b6bff) 8%, transparent), transparent 70%),
+    #07070b;
+  transition: background 1.2s;
 }
 
 /* Buttons: tracked serif text, thin outline */

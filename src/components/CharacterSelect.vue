@@ -1,13 +1,14 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { CHARS } from '../data/characters'
+import { CHARS, LEVELS, ROSTER } from '../data/characters'
 import { useStats } from '../composables/useStats'
+import { HEROES, usePlayer } from '../composables/usePlayer'
 
 const props = defineProps({
   initial: { type: String, default: 'ren' },
   initialMode: { type: String, default: 'duel' }, // open in 'duel' or 'watch' (Spectate)
 })
-const emit = defineEmits(['pick', 'watch', 'back'])
+const emit = defineEmits(['pick', 'watch', 'spectate', 'back'])
 const { byCharacter } = useStats()
 const ids = Object.keys(CHARS)
 const sel = ref(CHARS[props.initial] ? props.initial : 'ren')
@@ -29,7 +30,9 @@ const videoFailed = ref({})
 const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const showVideo = computed(() => !isRandom.value && !!cur.value.idle && !videoFailed.value[cur.value.id] && !reduceMotion)
 
-const resolve = id => (id === 'random' ? ids[Math.floor(Math.random() * ids.length)] : id)
+const resolve = id => (id === 'random' ? ROSTER[Math.floor(Math.random() * ROSTER.length)] : id)
+// a locked character (coming soon): shown and previewable, but can't be fought yet
+const isLocked = computed(() => !isRandom.value && !!CHARS[sel.value]?.locked)
 
 /* Duel: you vs the selected rival. Spectate: two rivals fight each other (computer vs computer). */
 const mode = ref('duel')
@@ -45,9 +48,24 @@ function choose(id) {
 function editSlot(s) { slot.value = s; sel.value = pair.value[s] }
 function setMode(m) { mode.value = m; if (m === 'watch') { slot.value = 'w'; sel.value = pair.value.b } }
 if (props.initialMode === 'watch') setMode('watch')
-const fight = () => (mode.value === 'watch'
+/* Free Battle: who you play as. Shin, Akane, or any rival. Remembered in this browser; by default your story hero. */
+const AKEY = 'bizarre-chess:play-as'
+const AS = [...Object.values(HEROES).map(h => ({ id: h.key, name: h.name, img: h.img, glow: '#e8e4ff', note: `${h.label} · player ultimates` })),
+  ...ids.filter(id => !CHARS[id].hero && !CHARS[id].locked).map(id => ({ id, name: CHARS[id].name, img: CHARS[id].img, glow: CHARS[id].glow, note: CHARS[id].ult.name }))]
+const playAs = ref(usePlayer().look.value ?? 'm')
+try { const v = localStorage.getItem(AKEY); if (AS.some(a => a.id === v)) playAs.value = v } catch { /* no storage */ }
+const asCur = computed(() => AS.find(a => a.id === playAs.value))
+// playing as the rival you picked (or Shin vs Shin, Akane vs Akane): a mirror match
+const isMirror = computed(() => !isRandom.value && (playAs.value === sel.value || ({ m: 'shin', f: 'akane' })[playAs.value] === sel.value))
+function stepAs(d) {
+  const i = AS.findIndex(a => a.id === playAs.value)
+  playAs.value = AS[(i + d + AS.length) % AS.length].id
+  try { localStorage.setItem(AKEY, playAs.value) } catch { /* no storage */ }
+}
+
+const fight = () => (isLocked.value ? null : mode.value === 'watch'
   ? emit('watch', resolve(pair.value.w), resolve(pair.value.b))
-  : emit('pick', resolve(sel.value)))
+  : emit('pick', resolve(sel.value), pref.value, playAs.value))
 
 // while Random is selected, flick through every portrait like a slot machine
 const shuffleId = ref(ids[0])
@@ -57,9 +75,31 @@ watch(isRandom, on => {
   if (on) shuffleTimer = setInterval(() => { shuffleId.value = ids[(ids.indexOf(shuffleId.value) + 1) % ids.length] }, 140)
 }, { immediate: true })
 onUnmounted(() => clearInterval(shuffleTimer))
-// difficulty as 1-5 pips, from the level name
-const LEVELS = ['Easy', 'Normal', 'Medium', 'Hard', 'Expert']
-const pips = c => Math.max(1, LEVELS.indexOf(c.level) + 1)
+// a rival's own difficulty as 1-5 pips on the cards (Easy .. Expert)
+const lvlIndex = name => LEVELS.findIndex(l => l.name === name)
+const pips = c => Math.max(1, lvlIndex(c.level))
+
+/* Free Battle difficulty: null = each rival plays at their own level, or a LEVELS name for every rival.
+   Remembered in this browser. */
+const DKEY = 'bizarre-chess:difficulty'
+const pref = ref(null)
+try { const v = localStorage.getItem(DKEY); if (lvlIndex(v) >= 0) pref.value = v } catch { /* no storage */ }
+function setPref(name) {
+  pref.value = name
+  try { name ? localStorage.setItem(DKEY, name) : localStorage.removeItem(DKEY) } catch { /* no storage */ }
+}
+// the level you'll actually face: your pick, else the rival's own (unknown for Random)
+const ownIdx = computed(() => (isRandom.value ? -1 : lvlIndex(cur.value.level)))
+const effIdx = computed(() => (pref.value ? lvlIndex(pref.value) : ownIdx.value))
+const effName = computed(() => (effIdx.value >= 0 ? LEVELS[effIdx.value].name : '???'))
+function stepPref(d) {
+  const base = effIdx.value >= 0 ? effIdx.value : 2
+  setPref(LEVELS[Math.min(LEVELS.length - 1, Math.max(0, base + d))].name)
+}
+
+// the cards fade in once; after that they stay put (leaving the selected card used to replay its fade-in)
+const settled = ref(false)
+onMounted(() => setTimeout(() => { settled.value = true }, 1800))
 
 // mouse parallax
 const wrap = ref(null)
@@ -76,6 +116,8 @@ function key(e) {
   if (e.key === 'ArrowDown' || e.key === 'ArrowRight') go(order[(i + 1) % order.length])
   else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') go(order[(i + order.length - 1) % order.length])
   else if (e.key === 'Tab' && mode.value === 'watch' && !e.target.closest?.('button')) { e.preventDefault(); editSlot(slot.value === 'w' ? 'b' : 'w') }
+  else if (mode.value === 'duel' && (e.key === '-' || e.key === '_')) stepPref(-1)
+  else if (mode.value === 'duel' && (e.key === '=' || e.key === '+')) stepPref(1)
   else if (e.key === 'Escape') emit('back')
   else if (e.key === 'Enter' && !e.target.closest?.('button')) fight()
 }
@@ -92,7 +134,7 @@ onUnmounted(() => window.removeEventListener('keydown', key))
       </Transition>
 
       <Transition name="swap" mode="out-in">
-        <div :key="cur.id" class="hero">
+        <div :key="cur.id" class="hero" :class="{ locked: isLocked }">
           <div class="aura" />
           <div v-if="isRandom" class="mystery">
             <img :src="CHARS[shuffleId].img" alt="" draggable="false">
@@ -108,9 +150,8 @@ onUnmounted(() => window.removeEventListener('keydown', key))
         </div>
       </Transition>
 
-      <div class="label" :key="cur.id">
-        <div class="idx">{{ index }}<span>/ 0{{ ids.length }}</span></div>
-        <div class="diff"><small>{{ cur.level }}</small><span class="pips" :class="{ unknown: isRandom }"><i v-for="n in 5" :key="n" :class="{ on: !isRandom && n <= pips(cur) }" /></span></div>
+      <div class="label" :class="{ locked: isLocked }" :key="cur.id">
+        <div v-if="cur.villain" class="idx"><em class="vtag">Antagonist</em></div>
         <h2>{{ cur.name }}</h2>
         <p class="desc">{{ cur.desc }}</p>
         <p class="ult"><b>{{ cur.ult.name }}</b>{{ cur.ult.text }}</p>
@@ -119,8 +160,35 @@ onUnmounted(() => window.removeEventListener('keydown', key))
           <span class="vs">vs</span>
           <button class="chip" :class="{ on: slot === 'b' }" @click="editSlot('b')"><i>Black</i>{{ nameOf(pair.b) }}</button>
         </div>
+        <!-- Free Battle: who you play as, ‹ portrait NAME › -->
+        <div v-if="mode === 'duel'" class="playas" :style="{ '--ag': asCur.glow }">
+          <span class="dlabel">You play as<em v-if="isMirror" class="mirrortag">Mirror match</em></span>
+          <div class="stepper">
+            <button class="arrow" aria-label="Previous character" @click="stepAs(-1)">‹</button>
+            <div class="asval">
+              <img :src="asCur.img" alt="" draggable="false">
+              <span><b>{{ asCur.name }}</b><small>{{ asCur.note }}</small></span>
+            </div>
+            <button class="arrow" aria-label="Next character" @click="stepAs(1)">›</button>
+          </div>
+        </div>
+        <!-- Free Battle difficulty: a big ‹ LEVEL › switch right above Fight -->
+        <div v-if="mode === 'duel'" class="difficulty">
+          <span class="dlabel">Difficulty</span>
+          <div class="stepper">
+            <button class="arrow" aria-label="Easier" :disabled="effIdx === 0" @click="stepPref(-1)">‹</button>
+            <div class="dval">
+              <b>{{ effName }}</b>
+              <span class="bar"><i v-for="(l, n) in LEVELS" :key="l.name" :class="{ on: n <= effIdx }" /></span>
+            </div>
+            <button class="arrow" aria-label="Harder" :disabled="effIdx === LEVELS.length - 1" @click="stepPref(1)">›</button>
+          </div>
+          <button v-if="pref" class="auto" @click="setPref(null)">Use {{ isRandom ? "the rival's" : cur.name + "'s" }} own level</button>
+          <span v-else class="note">{{ isRandom ? "The rival's own level" : `${cur.name}'s own level` }}</span>
+        </div>
         <div class="row">
-          <button class="fight" @click="fight"><b class="edge l" /><span>{{ mode === 'watch' ? 'Watch' : 'Fight' }}</span><b class="edge r" /></button>
+          <span v-if="isLocked" class="lockedmsg"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3" /><rect x="5" y="10" width="14" height="11" rx="2" /></svg>Locked · Coming soon</span>
+          <button v-else class="fight" @click="fight"><b class="edge l" /><span>{{ mode === 'watch' ? 'Watch' : 'Fight' }}</span><b class="edge r" /></button>
           <span v-if="rec && !isRandom" class="rec">{{ rec.win }}W · {{ rec.loss }}L · {{ rec.draw }}D</span>
         </div>
       </div>
@@ -133,27 +201,27 @@ onUnmounted(() => window.removeEventListener('keydown', key))
         <p class="eyebrow">{{ mode === 'watch' ? `Pick ${slot === 'w' ? 'White' : 'Black'}` : 'Choose your opponent' }}</p>
         <div class="modes" role="tablist" aria-label="Game mode">
           <button role="tab" :aria-selected="mode === 'duel'" :class="{ on: mode === 'duel' }" @click="setMode('duel')">Duel</button>
-          <button role="tab" :aria-selected="mode === 'watch'" :class="{ on: mode === 'watch' }" @click="setMode('watch')">Spectate</button>
+          <button role="tab" :aria-selected="mode === 'watch'" :class="{ on: mode === 'watch' }" @click="emit('spectate')">Spectate</button>
         </div>
       </div>
       <div class="cards">
         <button
-          v-for="c in CHARS" :key="c.id" class="card" :class="{ on: sel === c.id }"
+          v-for="c in CHARS" :key="c.id" class="card" :class="{ on: sel === c.id, locked: c.locked, settled }"
           :style="{ '--focus': c.focus, '--n': ids.indexOf(c.id), '--cg': c.glow }"
-          @click="choose(c.id)" @dblclick="mode === 'duel' && emit('pick', c.id)"
+          @click="choose(c.id)" @dblclick="mode === 'duel' && !c.locked && emit('pick', c.id, pref, playAs)"
         >
           <span v-if="mode === 'watch' && (pair.w === c.id || pair.b === c.id)" class="badges">
             <b v-if="pair.w === c.id" class="w">W</b><b v-if="pair.b === c.id" class="b">B</b>
           </span>
           <span class="thumb">
-            <img v-if="c.full" :src="c.full" alt="" class="full" draggable="false">
-            <img v-else-if="c.img" :src="c.img" alt="" draggable="false">
+            <!-- the same portrait as the big preview on the left -->
+            <img v-if="c.img" :src="c.img" alt="" draggable="false">
             <span v-else>{{ c.emoji.idle }}</span>
           </span>
+          <span v-if="c.villain" class="villain">Antagonist</span>
+          <span v-if="c.locked" class="lockbadge" aria-label="Locked"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3" /><rect x="5" y="10" width="14" height="11" rx="2" /></svg></span>
           <span class="meta">
-            <i class="no">0{{ ids.indexOf(c.id) + 1 }}</i>
             <b>{{ c.name }}</b>
-            <span class="pips sm"><i v-for="n in 5" :key="n" :class="{ on: n <= pips(c) }" /></span>
             <em>{{ c.ult.name }}</em>
           </span>
         </button>
@@ -165,17 +233,16 @@ onUnmounted(() => window.removeEventListener('keydown', key))
             <b v-if="pair.w === 'random'" class="w">W</b><b v-if="pair.b === 'random'" class="b">B</b>
           </span>
           <span class="thumb rnd">
-            <span class="faces"><img v-for="id in ids" :key="id" :src="CHARS[id].img" alt="" draggable="false"></span>
+            <span class="faces"><img v-for="id in ROSTER" :key="id" :src="CHARS[id].img" alt="" draggable="false"></span>
             <span class="q">?</span>
           </span>
           <span class="meta">
-            <i class="no">??</i>
             <b>Random</b>
             <em>Any rival</em>
           </span>
         </button>
       </div>
-      <small class="hint">{{ mode === 'watch' ? 'Pick White, then Black · Tab switches · Enter watches' : 'Arrows browse · Enter fights · Esc back' }}</small>
+      <small class="hint">{{ mode === 'watch' ? 'Pick White, then Black · Tab switches · Enter watches' : 'Arrows browse · − / + difficulty · Enter fights · Esc back' }}</small>
     </div>
   </section>
 </template>
@@ -198,9 +265,11 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 .aura { position: absolute; left: -4%; bottom: -10%; height: 100%; aspect-ratio: 1; background: radial-gradient(circle, color-mix(in srgb, var(--g) 22%, transparent), transparent 62%); }
 .hero img, .hero video {
   position: absolute; left: 0; bottom: 0; height: 100%; aspect-ratio: 1; object-fit: cover; display: block; user-select: none;
-  /* fade into the dark at the right (under the label) and at the bottom */
-  -webkit-mask-image: linear-gradient(90deg, #000 62%, transparent 92%), linear-gradient(0deg, transparent, #000 18%);
-  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, #000 62%, transparent 92%), linear-gradient(0deg, transparent, #000 18%); mask-composite: intersect;
+  /* fade into the dark on every side: softly at the top and left, longer at the right (under the label) and bottom */
+  --fade-x: linear-gradient(90deg, transparent, #000 7%, #000 58%, transparent 92%);
+  --fade-y: linear-gradient(0deg, transparent, #000 18%, #000 86%, transparent);
+  -webkit-mask-image: var(--fade-x), var(--fade-y); -webkit-mask-composite: source-in;
+  mask-image: var(--fade-x), var(--fade-y); mask-composite: intersect;
 }
 .mystery { position: absolute; left: 0; bottom: 0; height: 100%; aspect-ratio: 1; display: grid; place-items: center; }
 .mystery img {
@@ -228,6 +297,9 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 
 .label { position: absolute; z-index: 4; right: 0; bottom: 0; width: 44%; display: flex; flex-direction: column; gap: 8px; text-align: right; align-items: flex-end; animation: labelin .6s both; }
 @keyframes labelin { from { opacity: 0; transform: translateX(24px) } }
+/* a pool of shadow behind the text so it reads over bright artwork */
+.label::before { content: ''; position: absolute; z-index: -1; inset: -14% -6% -6% -34%; pointer-events: none; background: radial-gradient(ellipse 70% 62% at 66% 58%, rgba(7, 7, 11, .86), rgba(7, 7, 11, .5) 55%, transparent 78%); }
+.desc, .ult, .note { text-shadow: 0 1px 10px rgba(7, 7, 11, .9); }
 .idx { font-family: 'Cinzel', serif; font-weight: 700; font-size: 18px; letter-spacing: .12em; color: var(--g); }
 .idx span { font-size: 12px; color: #fff; opacity: .45; margin-left: 8px; }
 .label small { font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: #8a8a98; }
@@ -235,11 +307,34 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 .pips { display: inline-flex; gap: 4px; }
 .pips i { width: 14px; height: 4px; background: rgba(244, 242, 251, .14); transform: skewX(-20deg); }
 .pips i.on { background: var(--g); box-shadow: 0 0 8px color-mix(in srgb, var(--g) 70%, transparent); }
+/* difficulty switch: ‹ LEVEL › with a 7-step bar */
+.difficulty { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 6px; }
+.dlabel { font-family: 'Cinzel', serif; font-weight: 700; font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: #c9c7d6; }
+.stepper { display: flex; align-items: stretch; border: 1px solid rgba(244, 242, 251, .28); background: rgba(7, 7, 11, .72); backdrop-filter: blur(6px); }
+.arrow { width: 46px; padding: 0; border: 0; border-radius: 0; font-family: 'Cinzel', serif; font-size: 26px; line-height: 1; color: #f4f2fb; background: none; }
+.arrow:hover:not(:disabled) { background: color-mix(in srgb, var(--g) 30%, transparent); color: #fff; }
+.arrow:disabled { opacity: .2; }
+.dval { min-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 10px; border-left: 1px solid rgba(244, 242, 251, .14); border-right: 1px solid rgba(244, 242, 251, .14); }
+.dval b { font-family: 'Cinzel', serif; font-weight: 900; font-size: 18px; letter-spacing: .2em; text-transform: uppercase; color: var(--g); text-shadow: 0 0 14px color-mix(in srgb, var(--g) 50%, transparent); }
+.bar { display: flex; gap: 3px; }
+.bar i { width: 14px; height: 4px; transform: skewX(-20deg); background: rgba(244, 242, 251, .16); }
+.bar i.on { background: var(--g); }
+.note { font-size: 11px; color: #8a8a98; text-shadow: 0 0 6px #07070b; }
+.auto { padding: 3px 10px; border: 1px solid var(--line); font-size: 10px; letter-spacing: .12em; text-transform: none; color: #c9c7d6; background: rgba(7, 7, 11, .6); }
+.auto:hover:not(:disabled) { background: rgba(255, 255, 255, .08); color: #fff; }
+/* "You play as": a ‹ portrait NAME › switch, in that character's colour */
+.playas { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 6px; }
+.mirrortag { margin-left: 10px; padding: 2px 8px; font-style: normal; font-size: 9.5px; letter-spacing: .24em; color: #07070b; background: linear-gradient(90deg, #cfe0ff, #fff, #cfe0ff); box-shadow: 0 0 12px rgba(207, 224, 255, .6); }
+.asval { min-width: 190px; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; border-left: 1px solid rgba(244, 242, 251, .14); border-right: 1px solid rgba(244, 242, 251, .14); }
+.asval img { width: 38px; height: 38px; object-fit: cover; object-position: 50% 25%; box-shadow: 0 0 0 1px var(--ag); }
+.asval span { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.asval b { font-family: 'Cinzel', serif; font-weight: 900; font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: var(--ag); }
+.asval small { font-size: 10px; letter-spacing: .06em; color: #8a8a98; text-transform: none; }
 .pips.sm { margin: 3px 0 1px; } .pips.sm i { width: 9px; height: 3px; }
 .pips.sm i.on { background: var(--cg); box-shadow: none; }
 .label h2 {
   position: relative; font-family: 'Cinzel', serif; font-weight: 900; text-transform: uppercase; line-height: 1; letter-spacing: .04em;
-  font-size: clamp(48px, 12vh, 108px); color: #f4f2fb; text-shadow: 0 0 40px color-mix(in srgb, var(--g) 45%, transparent);
+  font-size: clamp(36px, 8.5vh, 76px); color: #f4f2fb; text-shadow: 0 0 40px color-mix(in srgb, var(--g) 45%, transparent);
 }
 .desc { font-size: 14px; line-height: 1.5; color: #c9c7d6; max-width: 34ch; }
 .ult { font-size: 12.5px; line-height: 1.5; color: #9d9bb0; max-width: 38ch; padding-top: 10px; border-top: 1px solid rgba(244, 242, 251, .16); }
@@ -283,10 +378,8 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 .badges .w { background: #f4f2fb; color: #07070b; }
 .badges .b { background: #07070b; color: #f4f2fb; border: 1px solid #f4f2fb; }
 .eyebrow { font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; letter-spacing: .3em; text-transform: uppercase; color: #f4f2fb; }
-/* 3 on top, the rest centred below (6-column grid, each card spans 2) */
-.cards { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 14px; padding: 8px 0; }
-.card { grid-column: span 2; }
-.card:nth-child(4):nth-last-child(2) { grid-column: 2 / span 2; }
+/* ten rivals + Random: a 4-column grid */
+.cards { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 12px; padding: 8px 0; }
 .card {
   position: relative; display: block; padding: 0; text-align: left; color: #f4f2fb; isolation: isolate; border-radius: 0; overflow: hidden; min-height: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .01)); border: 0;
@@ -296,8 +389,10 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 @keyframes cardin { from { opacity: 0; transform: translateY(24px) } }
 .card:hover:not(:disabled) { background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02)); }
 .card.on { transform: translateY(-6px); animation-name: none; box-shadow: 0 18px 40px -14px color-mix(in srgb, var(--cg) 80%, transparent); }
-/* blade spike under the selected card */
-.card.on::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 22px; transform: translateX(-50%); background: #f4f2fb; clip-path: polygon(0 0, 100% 0, 50% 100%); z-index: 3; }
+/* a hairline frame in the rival's colour, with an inner glow, marks the selected card */
+.card::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; border: 1px solid rgba(244, 242, 251, .06); transition: border-color .3s, box-shadow .3s; }
+.card:hover::before { border-color: rgba(244, 242, 251, .22); }
+.card.on::before { border-color: var(--cg); box-shadow: inset 0 0 28px -8px var(--cg); }
 .thumb { position: absolute; inset: 0; display: grid; place-items: center; font-size: 48px; filter: grayscale(.45) brightness(.7); transition: filter .35s; }
 .card.on .thumb, .card:hover .thumb, .card:focus-visible .thumb { filter: none; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: var(--focus); transform: scale(1.15); transform-origin: var(--focus); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
@@ -310,11 +405,22 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 /* character-colour bar along the bottom; full width when selected */
 .meta::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: 28%; background: var(--cg); transition: width .35s cubic-bezier(.2, .8, .2, 1); }
 .card.on .meta::after, .card:hover .meta::after { width: 100%; }
+.villain { position: absolute; z-index: 4; top: 8px; right: 8px; padding: 2px 7px; font-family: 'Cinzel', serif; font-weight: 700; font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; background: #d1002c; color: #fff; box-shadow: 0 0 12px rgba(209, 0, 44, .6); }
+.vtag { font-style: normal; margin-left: 12px; padding: 2px 8px; font-size: 10px; letter-spacing: .24em; text-transform: uppercase; background: #d1002c; color: #fff; vertical-align: 3px; }
 .meta .no { font-style: normal; font-family: 'Cinzel', serif; font-weight: 700; font-size: 11px; letter-spacing: .2em; color: #8a8a98; }
-.meta b { font-family: 'Cinzel', serif; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; font-size: clamp(16px, 2.8vh, 24px); line-height: 1; }
+.meta b { font-family: 'Cinzel', serif; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; font-size: clamp(12px, 1.9vh, 16px); line-height: 1; white-space: nowrap; }
 .meta small { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: #8a8a98; }
 .meta em { font-style: normal; font-size: 11px; color: #9d9bb0; }
-.hint { font-size: 10px; text-transform: uppercase; letter-spacing: .22em; color: #55556a; text-align: center; }
+/* locked characters (coming soon): dimmed, with a padlock */
+.card.settled { animation: none; }
+.card.locked .thumb { filter: grayscale(.9) brightness(.35) !important; }
+.lockbadge { position: absolute; z-index: 4; top: 38%; left: 50%; translate: -50% -50%; width: 30px; height: 30px; color: rgba(244, 242, 251, .75); }
+.lockbadge svg, .lockedmsg svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.hero.locked img, .hero.locked video { filter: grayscale(.85) brightness(.5); }
+.lockedmsg { display: inline-flex; align-items: center; gap: 10px; padding: 10px 4px; font-family: 'Cinzel', serif; font-weight: 900; font-size: clamp(16px, 2.6vh, 22px); letter-spacing: .3em; text-transform: uppercase; color: #8a8a98; }
+.lockedmsg svg { width: 22px; height: 22px; }
+.label.locked .difficulty, .label.locked .playas { opacity: .35; pointer-events: none; }
+.hint { font-size: 10px; text-transform: uppercase; letter-spacing: .22em; color: #6c6c82; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) {
   .wrap *, .wrap *::before, .wrap *::after { animation: none !important; transition: none !important; }
@@ -325,10 +431,11 @@ onUnmounted(() => window.removeEventListener('keydown', key))
   .label { width: 58%; }
   .desc, .hint, .label .ult { display: none; }
   .diff { flex-direction: row-reverse; gap: 8px; }
+  .dval { min-width: 110px; padding: 6px 8px; } .dval b { font-size: 14px; } .arrow { width: 38px; }
   .label h2 { font-size: 44px; }
-  .cards { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: auto; gap: 6px; }
-  .card, .card:nth-child(4):nth-last-child(2) { grid-column: auto; }
+  .cards { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 6px; }
   .meta { padding: 20px 6px 8px; } .meta em, .meta small, .meta .no, .meta .pips { display: none; } .meta b { font-size: 12px; }
+  .villain { font-size: 7px; padding: 1px 4px; top: 4px; right: 4px; }
   .card.on { transform: none; }
 }
 </style>
