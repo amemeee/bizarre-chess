@@ -4,8 +4,8 @@ import { ref, computed } from 'vue'
    Used as the hero of the story (rivals say the name), and as your portrait in duels, your ultimates' cut-ins,
    the Collection and the Profile page. */
 export const HEROES = {
-  m: { key: 'm', name: 'Shin', label: 'Male', img: '/assets/chess/player-m.jpg', desc: 'A quiet newcomer who never shows his hand.' },
-  f: { key: 'f', name: 'Akane', label: 'Female', img: '/assets/chess/player-f.jpg', desc: 'A quiet newcomer whose red eyes miss nothing.' },
+  m: { key: 'm', name: 'Shin', label: 'Male', img: '/assets/characters/shin/portrait.jpg', desc: 'A quiet newcomer who never shows his hand.' },
+  f: { key: 'f', name: 'Akane', label: 'Female', img: '/assets/characters/akane/portrait.jpg', desc: 'A quiet newcomer whose red eyes miss nothing.' },
 }
 export const PLAYER_GLOW = '#e8e4ff'
 const KEY = 'bizarre-chess:player'

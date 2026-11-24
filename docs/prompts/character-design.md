@@ -1,6 +1,6 @@
 # Character design prompt
 
-Image-generation prompt for designing a new Bizarre Chess character. Fill in the `[brackets]`, and attach two or three existing portraits from `public/assets/chess/` (e.g. `ren.jpg`, `mio.jpg`) so the style matches the cast.
+Image-generation prompt for designing a new Bizarre Chess character. Fill in the `[brackets]`, and attach two or three existing portraits from `public/assets/characters/<name>/` (e.g. `ren/portrait.jpg`, `mio/portrait.jpg`) so the style matches the cast.
 
 For the portrait the game actually uses, generate item 1 on its own as a square image with nothing else in it.
 

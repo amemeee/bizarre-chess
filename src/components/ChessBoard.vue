@@ -147,10 +147,16 @@ const calcArrows = computed(() => props.calcMoves.map(u => {
 
 // which side made the effects being added right now (the mover, or whoever fired the ultimate)
 let fxSide = null
+/* Move effects scale with how far the piece moved, so a 1-square step doesn't get a board-crossing blast:
+   1 square ≈ 60% size, 2 squares ≈ 80%, 3+ full. Path effects (streaks) only get thinner, never shorter.
+   Captured pieces and ultimates are never scaled. */
+let moveMag = 1
+const magFor = (from, to) => { const d = Math.max(Math.abs(fileOf(from) - fileOf(to)), Math.abs(rankOf(from) - rankOf(to))); return d >= 3 ? 1 : d === 2 ? 0.8 : 0.6 }
 function addFx(e, life) {
   const id = ++seq
   // a dying piece stays in the normal layer (its piece art already shows whose it is); its capture effect follows the attacker
   const tag = e.ghost ? { by: null, atk: e.side === 'w' ? 'b' : 'w' } : { by: e.by ?? fxSide }
+  if (moveMag < 1 && !e.ghost && e.pos) e = { ...e, pos: { ...e.pos, scale: e.kind === 'streak' ? `1 ${moveMag}` : `${moveMag}` } }
   fx.value = [...fx.value, { id, ...e, ...tag }]
   later(life, () => { fx.value = fx.value.filter(f => f.id !== id) })
 }
@@ -359,6 +365,44 @@ function pathFx(lm, tone, life) {
   addFx({ kind: 'streak', tone, pos: { left: (f0 + 0.5) * 12.5 + '%', top: (8 - r0 + 0.5) * 12.5 + '%' }, len: Math.hypot(dx, dy) * 12.5 + '%', angle: Math.atan2(dy, dx) + 'rad' }, life)
 }
 
+/* ---- Rai: the piece crackles square by square along its path (never skipping a square), a thin bolt jumping
+   from each square to the next; a knight runs two squares, then turns for one. Its own landing effect ends it. ---- */
+const STEP_MS = 110
+function squarePath(from, to, knight) {
+  const f0 = fileOf(from), r0 = rankOf(from), f1 = fileOf(to), r1 = rankOf(to)
+  const sq = (f, r) => FILES[f] + r
+  const out = [from]
+  if (knight) {
+    // the long leg first (two squares), then the short one
+    const longFile = Math.abs(f1 - f0) === 2
+    const mid = longFile ? [f1, r0] : [f0, r1]
+    const legs = [[f0, r0, mid[0], mid[1]], [mid[0], mid[1], f1, r1]]
+    for (const [a, b, c, d] of legs) {
+      const n = Math.max(Math.abs(c - a), Math.abs(d - b))
+      for (let i = 1; i <= n; i++) out.push(sq(a + Math.sign(c - a) * i, b + Math.sign(d - b) * i))
+    }
+    return out
+  }
+  const n = Math.max(Math.abs(f1 - f0), Math.abs(r1 - r0))
+  for (let i = 1; i <= n; i++) out.push(sq(f0 + Math.sign(f1 - f0) * i, r0 + Math.sign(r1 - r0) * i))
+  return out
+}
+function raiSteps(lm) {
+  const t = lm.piece, path = squarePath(lm.from, lm.to, t === 'n')
+  const step = paced(STEP_MS)
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i]
+    const dx = fileOf(a) - fileOf(b), dy = rankOf(b) - rankOf(a)
+    addFx({ kind: 'streak', tone: 'raiseg', pos: { left: (fileOf(b) + 0.5) * 12.5 + '%', top: (8 - rankOf(b) + 0.5) * 12.5 + '%' }, len: Math.hypot(dx, dy) * 12.5 + '%', angle: Math.atan2(dy, dx) + 'rad', delay: (i - 1) * step }, (i - 1) * step + paced(380))
+    if (i < path.length - 1) addFx({ kind: 'zapdot', pos: at(b), delay: i * step }, i * step + paced(320))
+  }
+  const steps = path.length - 1
+  // the piece itself jumps square by square (a knight turns at its corner)
+  const knee = t === 'n' ? path[2] : null
+  arrivals.value = { ...arrivals.value, [lm.to]: { ...arrivals.value[lm.to], steps, kx: knee ? fileOf(knee) - fileOf(lm.to) : 0, ky: knee ? rankOf(lm.to) - rankOf(knee) : 0, knight: t === 'n' } }
+  addFx({ kind: 'railand', piece: t, pos: at(lm.to), delay: steps * step }, steps * step + paced(t === 'q' || t === 'k' ? 1000 : 800))
+}
+
 /* ---- mist (Shin & Akane) ----
    The piece dissolves into mist, a drifting veil of it crosses the board, and the piece re-forms from it. */
 // Akane's mist is crimson-tinged; Shin's (and yours) silver-lavender
@@ -413,6 +457,7 @@ function onSquares(squares) {
   const lm = props.lastMove
   if (lm !== lastSeen) {
     fxSide = lm?.color ?? null
+    moveMag = lm ? magFor(lm.from, lm.to) : 1
     lastSeen = lm
     if (!lm) { frost.value = {}; ply = 0 } // new game / undo: the board thaws
     if (lm && prev.size) {
@@ -433,7 +478,9 @@ function onSquares(squares) {
       if (own === 'mist') mistTrail(lm, glowOf(lm.color))
       if (own === 'rain') { addFx({ kind: 'ripple', pos: at(lm.to), delay: paced(300) }, paced(900)); addFx({ kind: 'splash', pos: at(lm.to), delay: paced(300) }, paced(900)) }
       if (own === 'weave') { pathFx(lm, 'thread', paced(900)); addFx({ kind: 'jasmine', pos: at(lm.to), delay: paced(350) }, paced(1100)) }
-      if (own === 'bolt') { addFx({ kind: 'boltdown', pos: at(lm.to), delay: paced(120) }, paced(600)); addFx({ kind: 'zapburst', pos: at(lm.to), delay: paced(300) }, paced(700)) }
+      // Rai: each piece type has its own lightning (public/assets/fx/rai/move/): a travel effect along its path and a
+      // landing effect, each a blue layer with a white-hot core on top
+      if (own === 'bolt') raiSteps(lm)
       if (own === 'blink') { addFx({ kind: 'blinkeye', pos: at(lm.from) }, paced(600)); addFx({ kind: 'blinkeye', pos: at(lm.to), delay: paced(260) }, paced(700)) }
       if (own === 'snow') { addFx({ kind: 'snowpuff', pos: at(lm.from) }, paced(800)); addFx({ kind: 'snowpuff', pos: at(lm.to), delay: paced(300) }, paced(1000)) }
       if (own === 'glitch') { addFx({ kind: 'glitch', pos: at(lm.from) }, paced(500)); addFx({ kind: 'glitch', pos: at(lm.to), delay: paced(250) }, paced(600)) }
@@ -444,6 +491,7 @@ function onSquares(squares) {
       const charge = props.motions?.[lm.color] === 'charge'
       if (charge) chargeStreak(lm)
       if (lm.captured) {
+        moveMag = 1 // the capture itself lands at full size
         const capSq = lm.flags?.includes('e') ? lm.to[0] + lm.from[1] : lm.to
         const victim = lm.color === 'w' ? 'b' : 'w'
         const capKind = puppet ? 'yank' : time ? 'sand' : props.trails?.[lm.color] === 'ice' ? 'freeze' : charge ? 'knockout' : skip ? 'poof'
@@ -459,6 +507,7 @@ function onSquares(squares) {
       if (lm.flags?.includes('q')) arrive('a' + rank, 'd' + rank, false, puppet)
       if (lm.promotion) { morph(lm.to, 'crown'); addFx({ kind: 'beam', glow: '#ffcf4a', pos: at(lm.to), delay: paced(250) }, paced(1400)) }
     }
+    moveMag = 1 // anything added later (capture impacts, ultimates) is full size
     prev = now
     chatter(squares)
     return
@@ -518,6 +567,7 @@ function playUlt(ev) {
   const x = sq ? (fileOf(sq) + 0.5) * 12.5 : 50, y = sq ? (8 - rankOf(sq) + 0.5) * 12.5 : 50
   const n = ++seq
   fxSide = ev.side ?? null
+  moveMag = 1
   const u = { fx: ev.fx, glow: ev.glow, n, x, y, hasTarget: !!sq, roll: ev.roll, side: ev.side ?? null }
   if (ev.fx === 'burn') u.bits = particles(18, i => ({ x: (i / 17) * 100, h: rand(14, 34), d: rand(0, 350) }))
   if (ev.fx === 'revive') u.bits = particles(16, () => ({ x: rand(0, 100), d: rand(0, 800), dx: rand(-20, 20), r: rand(180, 600) }))
@@ -572,11 +622,11 @@ watch(() => props.ultEvent, onUlt)
           v-if="s.piece" :key="`${s.piece.color}${s.piece.type}-${arrivals[s.name]?.n ?? 0}-${morphs[s.name]?.n ?? 0}`"
           class="piece" :class="{
             arrive: arrivals[s.name], hop: arrivals[s.name]?.hop, lift: arrivals[s.name]?.lift, dash: arrivals[s.name]?.dash, skip: arrivals[s.name]?.skip,
-            ['m-' + arrivals[s.name]?.style]: arrivals[s.name]?.style,
+            ['m-' + arrivals[s.name]?.style]: arrivals[s.name]?.style, knightpath: arrivals[s.name]?.knight,
             crown: morphs[s.name]?.kind === 'crown', puppet: morphs[s.name]?.kind === 'puppet',
             'poke-own': pokes[s.name]?.kind === 'own', 'poke-enemy': pokes[s.name]?.kind === 'enemy',
           }"
-          :style="arrivals[s.name] ? { '--fx': arrivals[s.name].fx, '--fy': arrivals[s.name].fy } : null"
+          :style="arrivals[s.name] ? { '--fx': arrivals[s.name].fx, '--fy': arrivals[s.name].fy, '--steps': arrivals[s.name].steps ?? 1, '--kx': arrivals[s.name].kx ?? 0, '--ky': arrivals[s.name].ky ?? 0 } : null"
         >
           <span class="inner" :class="'m-' + (s.mood || 'idle')"><PieceArt
             :type="s.piece.type" :color="s.piece.color" :set="sets[s.piece.color]"
@@ -628,7 +678,7 @@ watch(() => props.ultEvent, onUlt)
             />
           </div>
           <!-- charge: an amber speed streak along the path -->
-          <div v-else-if="f.kind === 'streak'" class="streak" :class="f.tone" :style="{ ...f.pos, width: f.len, '--angle': f.angle, '--g': f.glow }" />
+          <div v-else-if="f.kind === 'streak'" class="streak" :class="f.tone" :style="{ ...f.pos, width: f.len, '--angle': f.angle, '--g': f.glow, '--delay': (f.delay ?? 0) + 'ms' }" />
           <!-- Shin & Akane: a puff of mist where the piece dissolves, and where it re-forms -->
           <div v-else-if="f.kind === 'mistpuff'" class="cell mistpuff" :class="f.art" :style="{ ...f.pos, '--g': f.glow, '--delay': (f.delay ?? 0) + 'ms' }"><i /><i /><i /></div>
           <!-- Haru: petals and leaves puffing out of a blooming square; leaves folding away from the old one -->
@@ -653,6 +703,8 @@ watch(() => props.ultEvent, onUlt)
           <div v-else-if="f.kind === 'boltdown'" class="cell boltdown" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }" />
           <div v-else-if="f.kind === 'blinkeye'" class="cell blinkeye" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }" />
           <div v-else-if="f.kind === 'snowpuff'" class="cell snowpuff" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }" />
+          <div v-else-if="f.kind === 'zapdot'" class="cell zapdot" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }" />
+          <div v-else-if="f.kind === 'railand'" class="cell railand" :class="f.piece" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }"><i /><b /></div>
           <div v-else-if="f.kind === 'zapburst'" class="cell zapburst" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }" />
           <div v-else-if="f.kind === 'glitch'" class="cell glitchfx" :style="{ ...f.pos, '--delay': (f.delay ?? 0) + 'ms' }" />
           <!-- Iron Dominion wears off: the chain on that square snaps -->
@@ -1225,9 +1277,23 @@ watch(() => props.ultEvent, onUlt)
 .u-bond .loomart { left: 50%; bottom: -4%; width: 40%; aspect-ratio: 356 / 332; translate: -50% 0; background: url(/assets/fx/melati/loom.webp) center / contain no-repeat; opacity: .55; animation: cloudin 2s ease-out both; }
 
 /* ---- Rai: lightning. The piece vanishes in a flash and strikes down onto its new square as a bolt ---- */
-.piece.arrive.m-bolt { animation: boltmove calc(.55s * var(--pace, 1)) steps(1, end) both, boltland calc(.55s * var(--pace, 1)) ease-out both; }
-@keyframes boltmove { 0% { transform: translate(calc(var(--fx) * 100%), calc(var(--fy) * 100%)); opacity: 1 } 15% { opacity: 0 } 35% { transform: none; opacity: 0 } 40% { opacity: 1 } }
+/* Rai's piece jumps square by square: --steps jumps over --steps × 110ms (paced), then a crackle as it lands */
+.piece.arrive.m-bolt { --step: calc(110ms * var(--pace, 1)); animation: zapsteps calc(var(--steps) * var(--step)) steps(var(--steps), end) both, zapland calc(.45s * var(--pace, 1)) ease-out calc(var(--steps) * var(--step)) both; }
+@keyframes zapsteps { from { transform: translate(calc(var(--fx) * 100%), calc(var(--fy) * 100%)); filter: brightness(2.2) drop-shadow(0 0 10px #3d7bff) } to { transform: none; filter: brightness(2.2) drop-shadow(0 0 10px #3d7bff) } }
+@keyframes zapknight {
+  0% { transform: translate(calc(var(--fx) * 100%), calc(var(--fy) * 100%)); animation-timing-function: steps(2, end); filter: brightness(2.2) drop-shadow(0 0 10px #3d7bff) }
+  66.7% { transform: translate(calc(var(--kx) * 100%), calc(var(--ky) * 100%)); animation-timing-function: steps(1, end) }
+  100% { transform: none; filter: brightness(2.2) drop-shadow(0 0 10px #3d7bff) }
+}
+.piece.arrive.m-bolt.knightpath { animation-name: zapknight, zapland; animation-timing-function: linear, ease-out; }
+@keyframes zapland { from { filter: brightness(2.2) drop-shadow(0 0 12px #3d7bff) } 40% { transform: scaleY(1.12) translateY(-4%) } to { filter: none } }
+/* the thin bolt from square to square, and a small crackle on each square it passes */
+.streak.raiseg { height: 7%; clip-path: none; background: url(/assets/fx/rai/arc.webp) center / 100% 100% no-repeat; filter: drop-shadow(0 0 5px #3d7bff); mix-blend-mode: screen; animation: raiseg .38s ease-out var(--delay, 0ms) both; }
+@keyframes raiseg { from { opacity: 0; clip-path: inset(0 0 0 100%) } 30% { opacity: 1; clip-path: inset(0) } to { opacity: 0 } }
+.zapdot { background: url(/assets/fx/rai/burst.webp) center / 55% auto no-repeat; mix-blend-mode: screen; animation: zapdot .32s ease-out var(--delay) both; }
+@keyframes zapdot { from { opacity: 0; transform: scale(.4) } 40% { opacity: 1 } to { opacity: 0; transform: scale(1.1) } }
 @keyframes boltland { 0%, 39% { filter: brightness(3) drop-shadow(0 0 14px #3d7bff) } 40% { transform: scaleY(1.25) translateY(-6%) } 60% { transform: none } 100% { filter: none } }
+
 .boltdown { top: auto; overflow: visible; }
 .boltdown::before { content: ''; position: absolute; left: 50%; bottom: 40%; width: 70%; height: 300%; translate: -50% 0; background: url(/assets/fx/rai/bolt.webp) center bottom / 100% 100% no-repeat; mix-blend-mode: screen; filter: drop-shadow(0 0 10px #3d7bff); animation: boltstrike .45s ease-out var(--delay) both; }
 /* ---- Akane: the blink of an eye. The piece vanishes, a crimson eye glints, and it's simply there ---- */
@@ -1893,4 +1959,25 @@ watch(() => props.ultEvent, onUlt)
 /* a move that stalemates the opponent, which WINS in this game: a gold dot marked WIN */
 .sq.hint.stale::before { background: #ffcf4a !important; box-shadow: 0 0 12px #ffcf4a; }
 .sq.hint.stale::after { content: 'WIN'; position: absolute; left: 0; right: 0; bottom: 4%; z-index: 4; text-align: center; font-family: var(--serif); font-weight: 900; font-size: clamp(7px, 1.1vh, 10px); letter-spacing: .12em; color: #ffcf4a; text-shadow: 0 0 4px #000; pointer-events: none; }
+/* Rai's per-piece lightning: blue layer + white-hot core (screen-blended), along the path and on landing */
+.streak.rai { clip-path: none; background-color: transparent; background-blend-mode: screen; background-size: 100% 100%; background-repeat: no-repeat; filter: drop-shadow(0 0 8px #3d7bff); animation: lash .6s ease-out both; }
+.streak.rai.k { height: 26%; background-image: url(/assets/fx/rai/move/k-travel-core.webp), url(/assets/fx/rai/move/k-travel.webp); }
+.streak.rai.q { height: 22%; background-image: url(/assets/fx/rai/move/q-travel-core.webp), url(/assets/fx/rai/move/q-travel.webp); }
+.streak.rai.r { height: 9%; background-image: url(/assets/fx/rai/move/r-travel-core.webp), url(/assets/fx/rai/move/r-travel.webp); }
+.streak.rai.b { height: 10%; background-image: url(/assets/fx/rai/move/b-travel-core.webp), url(/assets/fx/rai/move/b-travel.webp); }
+.streak.rai.n { height: 30%; background-image: url(/assets/fx/rai/move/n-travel-core.webp), url(/assets/fx/rai/move/n-travel.webp); }
+.streak.rai.p { height: 9%; background-image: url(/assets/fx/rai/move/p-travel-core.webp), url(/assets/fx/rai/move/p-travel.webp); }
+.railand i, .railand b { position: absolute; inset: -25%; background: center / contain no-repeat; }
+.railand i { filter: drop-shadow(0 0 8px #3d7bff); animation: railand .9s ease-out var(--delay) both; }
+.railand b { mix-blend-mode: screen; animation: railcore .45s ease-out var(--delay) both; }
+@keyframes railand { from { opacity: 0; transform: scale(.5) } 20% { opacity: 1; transform: scale(1.05) } 70% { opacity: 1 } to { opacity: 0; transform: scale(1.15) } }
+@keyframes railcore { from { opacity: 0; transform: scale(.6) } 25% { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(1.25) } }
+.railand.r i, .railand.r b { inset: -60% -10% 0; background-position: center bottom; }   /* the rook's lightning pillar strikes from above */
+.railand.k i, .railand.k b, .railand.q i, .railand.q b { inset: -45%; }
+.railand.k i { background-image: url(/assets/fx/rai/move/k-land.webp); } .railand.k b { background-image: url(/assets/fx/rai/move/k-land-core.webp); }
+.railand.q i { background-image: url(/assets/fx/rai/move/q-land.webp); } .railand.q b { background-image: url(/assets/fx/rai/move/q-land-core.webp); }
+.railand.r i { background-image: url(/assets/fx/rai/move/r-land.webp); } .railand.r b { background-image: url(/assets/fx/rai/move/r-land-core.webp); }
+.railand.b i { background-image: url(/assets/fx/rai/move/b-land.webp); } .railand.b b { background-image: url(/assets/fx/rai/move/b-land-core.webp); }
+.railand.n i { background-image: url(/assets/fx/rai/move/n-land.webp); } .railand.n b { background-image: url(/assets/fx/rai/move/n-land-core.webp); }
+.railand.p i { background-image: url(/assets/fx/rai/move/p-land.webp); } .railand.p b { background-image: url(/assets/fx/rai/move/p-land-core.webp); }
 </style>

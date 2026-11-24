@@ -32,7 +32,7 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 <template>
   <section ref="root" class="home" :style="{ '--g': cur.glow }" @pointermove="move">
     <!-- cover art: Ren at the board, full-bleed, with scrims so the title and roster stay readable -->
-    <img class="cover" src="/assets/chess/ren-cover.jpg" alt="" draggable="false">
+    <img class="cover" src="/assets/ui/cover.jpg" alt="" draggable="false">
     <div class="scrim" aria-hidden="true" />
 
     <!-- title -->

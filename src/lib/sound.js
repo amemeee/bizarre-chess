@@ -42,6 +42,8 @@ function ac() {
 const SAMPLES = {
   // Kyo's movement: iron chain rattles (freesound community, "chain"), the 12 strongest takes
   // Kyo's capture: chains wrap the piece and lock tight (kuzu420, "chain locker"), its three lock-ups
+  // Rai's movement: a lightning spell (dragon-studio, "lightning spell"); pitch varies a little each time
+  lightning: { url: '/assets/sfx/rai-lightning.mp3', vol: 0.85, takes: [[0.04, 1.05]], pitch: 0.08 },
   lock: { url: '/assets/sfx/kyo-lock.mp3', vol: 1, takes: [[0.64, 1.9], [3.38, 4.3], [4.5, 5.86]] },
   chain: { url: '/assets/sfx/kyo-chain.mp3', vol: 0.95, takes: [[0.1, 0.78], [1.64, 2.14], [2.68, 3.1], [3.6, 4.24], [4.86, 5.24], [7.12, 7.94], [8.8, 9.18], [9.82, 10.12], [13.46, 13.92], [14.6, 15.22], [15.78, 16.36], [18.24, 18.62]] },
 }
@@ -62,6 +64,7 @@ function playSample(name, delay = 0) {
   const [a, b] = s.takes[Math.floor(Math.random() * s.takes.length)]
   const src = c.createBufferSource(), g = c.createGain(), t = c.currentTime + delay, len = b - a
   src.buffer = buf
+  if (s.pitch) src.playbackRate.value = 1 + (Math.random() * 2 - 1) * s.pitch
   g.gain.setValueAtTime(s.vol, t)
   g.gain.setValueAtTime(s.vol, t + Math.max(0, len - 0.08))
   g.gain.linearRampToValueAtTime(0, t + len) // fade the tail so takes never click
@@ -147,7 +150,8 @@ const MOVES = {
   // Yuki: a hush of snow and a tiny chime
   snow: () => { noise({ dur: 0.6, vol: 0.05, freq: 6000, q: 0.5, attack: 0.15 }); chord([2093, 2637], { dur: 0.4, vol: 0.03, stagger: 0.07, type: 'sine', delay: 0.5 }) },
   // Rai: a sharp electric crack
-  bolt: () => { noise({ dur: 0.12, vol: 0.2, freq: 5000, q: 1.5 }); tone({ freq: 1800, slideTo: 300, dur: 0.18, vol: 0.06, type: 'sawtooth' }); noise({ dur: 0.08, vol: 0.12, freq: 2500, q: 3, delay: 0.2 }) },
+  // Rai: a recorded lightning spell (synthesized crack until it has loaded)
+  bolt: () => { if (!playSample('lightning')) { noise({ dur: 0.12, vol: 0.2, freq: 5000, q: 1.5 }); tone({ freq: 1800, slideTo: 300, dur: 0.18, vol: 0.06, type: 'sawtooth' }); noise({ dur: 0.08, vol: 0.12, freq: 2500, q: 3, delay: 0.2 }) } },
   // Erika: a soft patter and a drip as it lands
   rain: () => { noise({ dur: 0.5, vol: 0.06, freq: 4000, q: 0.6, attack: 0.1 }); tone({ freq: 1400, slideTo: 700, dur: 0.12, vol: 0.06, type: 'sine', delay: 0.35 }) },
   // Melati: a plucked gold thread and a light chime

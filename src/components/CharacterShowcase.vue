@@ -1,7 +1,7 @@
 <script setup>
 /* The cast: every rival in full, with who they are, how they play, their ultimate, their piece set,
    their story chapter and your record against them. The roster runs along the bottom. */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ROSTER, CHARS, LEVELS } from '../data/characters'
 import { CHAPTERS } from '../data/story'
 import { SET_NAMES, MOVESETS } from '../data/sets'
@@ -18,6 +18,12 @@ const sel = ref(CHARS[props.initial] ? props.initial : ids[0])
 const c = computed(() => CHARS[sel.value])
 // the Alter: this character's negative self, met in a mirror match
 const alter = ref(false)
+/* Reactions: a character with mood portraits (Kyo) shows them all; clicking one puts it in the big art. */
+const MOOD_NAMES = { idle: 'Calm', happy: 'Pleased', angry: 'Irritated', shock: 'Shaken', sad: 'Defeated', ult: 'Ultimate', mask: 'Masked', hopeless: 'Hopeless' }
+const MOOD_NOTES = { idle: 'His usual face', happy: 'Winning, capturing, giving check', angry: 'Losing a minor piece', shock: 'Losing a big piece, or in check', sad: 'When you beat him', ult: 'Firing his ultimate', mask: 'While losing badly', hopeless: 'Story only' }
+const reactions = computed(() => (c.value.moods ? [{ key: 'idle', img: c.value.img }, ...Object.entries(c.value.moods).map(([key, img]) => ({ key, img }))] : []))
+const face = ref(null)
+watch(sel, () => { face.value = null })
 const name = computed(() => (alter.value ? 'Alter ' + c.value.name : c.value.name))
 const quote = computed(() => (alter.value ? c.value.say.mirror?.start ?? c.value.say.start : c.value.say.start))
 const idx = computed(() => ids.indexOf(sel.value))
@@ -58,7 +64,7 @@ onUnmounted(() => window.removeEventListener('keydown', key))
     <div class="hero">
       <Transition name="word" mode="out-in"><span :key="c.id + 'w' + alter" class="bigword" aria-hidden="true">{{ name }}</span></Transition>
       <Transition name="art" mode="out-in">
-        <img :key="c.id + alter" :src="c.fullPending ? c.img : c.full ?? c.img" :alt="name" class="keyart" draggable="false">
+        <img :key="c.id + alter + face" :src="face ?? (c.fullPending ? c.img : c.full ?? c.img)" :alt="name" class="keyart" draggable="false">
       </Transition>
       <button class="nav prev" aria-label="Previous character" @click="step(-1)">‹</button>
       <button class="nav next" aria-label="Next character" @click="step(1)">›</button>
@@ -79,6 +85,16 @@ onUnmounted(() => window.removeEventListener('keydown', key))
         <p class="desc">{{ c.desc }}</p>
         <button class="quote" title="Hear them" @click="hear">“{{ quote }}”<i>▶</i></button>
         <p v-if="alter && c.say.mirror" class="text mirrorlines"><b>Wins:</b> “{{ c.say.mirror.win }}”<br><b>Loses:</b> “{{ c.say.mirror.lose }}”</p>
+
+        <div v-if="reactions.length" class="block">
+          <span class="label">Reactions · {{ reactions.length }}</span>
+          <div class="reacts">
+            <button
+              v-for="r in reactions" :key="r.key" class="react" :class="{ on: (face ?? c.img) === r.img }" :title="MOOD_NOTES[r.key]"
+              @click="face = r.img"
+            ><img :src="r.img" alt="" draggable="false"><span>{{ MOOD_NAMES[r.key] ?? r.key }}</span></button>
+          </div>
+        </div>
 
         <div class="block">
           <span class="label">Ultimate</span>
@@ -171,6 +187,15 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 }
 .quote i { font-style: normal; font-size: 10px; color: var(--g); }
 .quote:hover:not(:disabled) { background: color-mix(in srgb, var(--g) 12%, transparent); color: #fff; }
+.reacts { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 5px; max-width: 640px; }
+.react { position: relative; aspect-ratio: 1; padding: 0; border: 1px solid var(--line); overflow: hidden; background: #0d0c14; text-transform: none; letter-spacing: 0; }
+.react img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; filter: grayscale(.5) brightness(.7); transition: filter .25s, transform .4s; }
+.react span { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 4px 3px; background: linear-gradient(transparent, rgba(7, 7, 11, .9)); font-family: var(--serif); font-weight: 700; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); text-align: center; white-space: nowrap; }
+.react:hover:not(:disabled) { background: #0d0c14; border-color: var(--line-strong); }
+.react:hover img, .react.on img { filter: none; transform: scale(1.06); }
+.react.on { border-color: var(--g); box-shadow: 0 0 14px -4px var(--g); }
+.react.on span { color: var(--g); }
+.cast.alter .react img { filter: grayscale(1) invert(1) contrast(1.1); }
 .block { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
 .label { font-family: var(--serif); font-weight: 700; font-size: 10.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
 .ult { display: flex; align-items: baseline; gap: 10px; }

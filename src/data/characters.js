@@ -1,4 +1,4 @@
-/* Portraits: `img` is one image per character (public/assets/chess/), `focus` is the face position used for cropping.
+/* Portraits: `img` is one image per character (public/assets/characters/<id>/portrait.jpg), `focus` is the face position used for cropping.
    `full` is a full-pose image used on the character-select cards.
    `idle` (optional) is a short looping video played in the big preview when the character is selected.
    `motion` (optional): how this character's pieces move ('puppet' = sway, carried by strings, captures yanked away;
@@ -52,7 +52,7 @@ export const CHARS = {
   /* ---- the heroes: Shin and Akane are who you play as in the story, and Free Battle opponents too ----
      `hero: true` keeps them out of the story's rival list and the Collection (they're "You" there). */
   shin: {
-    id: 'shin', name: 'Shin', hero: true, color: '#2a2838', glow: '#e8e4ff', img: '/assets/chess/player-m.jpg', pieces: 'awakened', motion: 'mist', art: 'color', focus: '50% 30%', skill: 12, depth: 9, level: 'Hard',
+    id: 'shin', name: 'Shin', hero: true, color: '#2a2838', glow: '#e8e4ff', img: '/assets/characters/shin/portrait.jpg', pieces: 'awakened', motion: 'mist', art: 'color', focus: '50% 30%', skill: 12, depth: 9, level: 'Hard',
     emoji: { idle: '😐', happy: '😏', angry: '😠', sad: '😶', shock: '😮', ult: '♛' },
     desc: 'A quiet newcomer who never shows his hand.',
     ult: { name: 'Shadow Swap', text: 'Two of his pieces (not the king) trade places in an instant, lining up an attack. His turn continues.', fx: 'swap', charge: 0.9, shout: 'Switch.' },
@@ -72,7 +72,7 @@ export const CHARS = {
     },
   },
   akane: {
-    id: 'akane', female: true, name: 'Akane', hero: true, color: '#5a1020', glow: '#ff3b5c', img: '/assets/chess/player-f.jpg', pieces: 'awakened', motion: 'mist', art: 'color', focus: '50% 30%', skill: 12, depth: 9, level: 'Hard',
+    id: 'akane', female: true, name: 'Akane', hero: true, color: '#5a1020', glow: '#ff3b5c', img: '/assets/characters/akane/portrait.jpg', pieces: 'awakened', motion: 'mist', art: 'color', focus: '50% 30%', skill: 12, depth: 9, level: 'Hard',
     emoji: { idle: '🙂', happy: '😌', angry: '😠', sad: '😔', shock: '😳', ult: '👁️' },
     desc: 'A quiet newcomer whose red eyes miss nothing.',
     ult: { name: 'Crimson Sight', text: 'Her eyes see the path to victory: her next three moves are played perfectly.', fx: 'sight', charge: 0.9, shout: 'I see you.' },
@@ -92,7 +92,7 @@ export const CHARS = {
     },
   },
   mio: {
-    id: 'mio', female: true, name: 'Mio', color: '#e0142b', glow: '#ff3d7a', img: '/assets/chess/mio.jpg', pieces: 'ember', motion: 'skip', full: '/assets/chess/mio-full.jpg', art: 'color', focus: '50% 40%', skill: 1, depth: 2, level: 'Easy',
+    id: 'mio', female: true, name: 'Mio', color: '#e0142b', glow: '#ff3d7a', img: '/assets/characters/mio/portrait.jpg', pieces: 'ember', motion: 'skip', full: '/assets/characters/mio/full.jpg', art: 'color', focus: '50% 40%', skill: 1, depth: 2, level: 'Easy',
     emoji: { idle: '😊', happy: '😆', angry: '😤', sad: '😢', shock: '😲', ult: '🔥' },
     desc: 'Cheerful beginner. Plays fast and loose.',
     ult: { name: 'Flame Burst', text: 'Burns one of your knights or bishops to ash (two pawns if none are left).', fx: 'burn', charge: 1, shout: 'Burn!' },
@@ -112,7 +112,7 @@ export const CHARS = {
     },
   },
   haru: {
-    id: 'haru', name: 'Haru', color: '#1f8a55', glow: '#4dff9b', img: '/assets/chess/haru.jpg', pieces: 'vine', motion: 'grow', trail: 'bloom', full: '/assets/chess/haru-full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 1, depth: 2, level: 'Easy',
+    id: 'haru', name: 'Haru', color: '#1f8a55', glow: '#4dff9b', img: '/assets/characters/haru/portrait.jpg', pieces: 'vine', motion: 'grow', trail: 'bloom', full: '/assets/characters/haru/full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 1, depth: 2, level: 'Easy',
     emoji: { idle: '🌱', happy: '😊', angry: '😣', sad: '🥀', shock: '😯', ult: '🌸' },
     desc: 'A gentle gardener. Nothing he loses stays gone for long.',
     ult: { name: 'Bloom', text: 'Brings back one of his captured knights or bishops (or two pawns) onto an empty starting square. His meter fills fast.', fx: 'revive', charge: 1.25, shout: 'Bloom again.' },
@@ -132,7 +132,7 @@ export const CHARS = {
     },
   },
   kaito: {
-    id: 'kaito', name: 'Kaito', color: '#e08a00', glow: '#ffb020', img: '/assets/chess/kaito.jpg', pieces: 'gold', motion: 'charge', trail: 'crack', full: '/assets/chess/kaito-full.jpg', art: 'color', focus: '50% 38%', skill: 5, depth: 4, level: 'Normal',
+    id: 'kaito', name: 'Kaito', color: '#e08a00', glow: '#ffb020', img: '/assets/characters/kaito/portrait.jpg', pieces: 'gold', motion: 'charge', trail: 'crack', full: '/assets/characters/kaito/full.jpg', art: 'color', focus: '50% 38%', skill: 5, depth: 4, level: 'Normal',
     emoji: { idle: '😁', happy: '🤣', angry: '😡', sad: '😩', shock: '🤯', ult: '👑' },
     desc: 'Loud and reckless. Attacks first, thinks later.',
     ult: { name: 'Crown Grab', text: 'Promotes one of his pawns straight to a queen. His meter fills slowly.', fx: 'promote', charge: 0.45, shout: 'Long live the queen!' },
@@ -152,7 +152,7 @@ export const CHARS = {
     },
   },
   jun: {
-    id: 'jun', name: 'Jun', color: '#8a8aa0', glow: '#e8e8f8', img: '/assets/chess/jun.jpg', pieces: 'chips', motion: 'flip', full: '/assets/chess/jun-full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 7, depth: 6, level: 'Medium',
+    id: 'jun', name: 'Jun', color: '#8a8aa0', glow: '#e8e8f8', img: '/assets/characters/jun/portrait.jpg', pieces: 'chips', motion: 'flip', full: '/assets/characters/jun/full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 7, depth: 6, level: 'Medium',
     emoji: { idle: '😼', happy: '🤑', angry: '😬', sad: '😵', shock: '🙀', ult: '🎲' },
     desc: "A grinning gambler, and Sena's little brother. Bets everything on a roll of the dice.",
     ult: { name: 'All In', text: 'Rolls a die: 1–2 he loses a pawn, 3–5 burns one of your knights or bishops, 6 burns two. His meter fills fast.', fx: 'gamble', charge: 1.3, shout: "Read 'em and weep!" },
@@ -172,7 +172,7 @@ export const CHARS = {
     },
   },
   yuki: {
-    id: 'yuki', female: true, name: 'Yuki', color: '#5b7a99', glow: '#8ff0ff', img: '/assets/chess/yuki.jpg', pieces: 'ice', motion: 'snow', trail: 'ice', full: '/assets/chess/yuki-full.jpg', art: 'color', focus: '50% 40%', skill: 7, depth: 6, level: 'Medium',
+    id: 'yuki', female: true, name: 'Yuki', color: '#5b7a99', glow: '#8ff0ff', img: '/assets/characters/yuki/portrait.jpg', pieces: 'ice', motion: 'snow', trail: 'ice', full: '/assets/characters/yuki/full.jpg', art: 'color', focus: '50% 40%', skill: 7, depth: 6, level: 'Medium',
     emoji: { idle: '🙂', happy: '😌', angry: '🥶', sad: '🥺', shock: '😮', ult: '❄️' },
     desc: "Calm and patient, Noa's twin sister. Waits for your mistakes.",
     ult: { name: 'Blizzard', text: 'Freezes and shatters three of your pawns.', fx: 'freeze', charge: 1, shout: 'Shatter.' },
@@ -192,10 +192,10 @@ export const CHARS = {
     },
   },
   ren: {
-    id: 'ren', name: 'Ren', color: '#15171f', glow: '#ff4a3d', img: '/assets/chess/ren.jpg', pieces: 'clockwork', motion: 'time', full: '/assets/chess/ren-full.jpg', art: 'color', focus: '50% 36%', skill: 12, depth: 9, level: 'Hard',
+    id: 'ren', name: 'Ren', color: '#15171f', glow: '#ff4a3d', img: '/assets/characters/ren/portrait.jpg', pieces: 'clockwork', motion: 'time', full: '/assets/characters/ren/full.jpg', art: 'color', focus: '50% 36%', skill: 12, depth: 9, level: 'Hard',
     emoji: { idle: '😐', happy: '😏', angry: '😠', sad: '😔', shock: '😳', ult: '⚡' },
     desc: 'Your rival since the first day. Cold and calculating; rarely makes mistakes.',
-    ult: { name: 'Time Skip', text: "Freezes time: you lose your next turn, and he moves again (the bonus move can't capture). His meter fills slowly.", fx: 'skip', charge: 0.75, shout: 'Time is mine.', img: '/assets/chess/ren-ult.jpg' },
+    ult: { name: 'Time Skip', text: "Freezes time: you lose your next turn, and he moves again (the bonus move can't capture). His meter fills slowly.", fx: 'skip', charge: 0.75, shout: 'Time is mine.', img: '/assets/characters/ren/ult.jpg' },
     say: {
       start: "Show me what you've got.",
       metBeaten: "{w} wins. I've calculated every one of them. It won't happen again.",
@@ -212,7 +212,7 @@ export const CHARS = {
     },
   },
   sena: {
-    id: 'sena', female: true, name: 'Sena', color: '#1c3b8f', glow: '#4a7dff', img: '/assets/chess/sena.jpg', pieces: 'glass', motion: 'glide', full: '/assets/chess/sena-full.jpg', fullPending: true, art: 'color', focus: '50% 42%', skill: 14, depth: 10, level: 'Hard',
+    id: 'sena', female: true, name: 'Sena', color: '#1c3b8f', glow: '#4a7dff', img: '/assets/characters/sena/portrait.jpg', pieces: 'glass', motion: 'glide', full: '/assets/characters/sena/full.jpg', fullPending: true, art: 'color', focus: '50% 42%', skill: 14, depth: 10, level: 'Hard',
     emoji: { idle: '😑', happy: '😌', angry: '😠', sad: '😞', shock: '😨', ult: '💎' },
     desc: "A proud noble, and Jun's older sister. She thinks your best piece is beneath her.",
     ult: { name: 'Downfall', text: 'Demotes your queen to a rook (a rook to a knight if you have no queen).', fx: 'demote', charge: 0.85, shout: 'Kneel.' },
@@ -232,7 +232,7 @@ export const CHARS = {
     },
   },
   noa: {
-    id: 'noa', female: true, name: 'Noa', color: '#6a3fd0', glow: '#b06bff', img: '/assets/chess/noa.jpg', pieces: 'puppet', motion: 'puppet', full: '/assets/chess/noa-full.jpg', art: 'color', focus: '50% 42%', skill: 18, depth: 12, level: 'Expert',
+    id: 'noa', female: true, name: 'Noa', color: '#6a3fd0', glow: '#b06bff', img: '/assets/characters/noa/portrait.jpg', pieces: 'puppet', motion: 'puppet', full: '/assets/characters/noa/full.jpg', art: 'color', focus: '50% 42%', skill: 18, depth: 12, level: 'Expert',
     emoji: { idle: '😶', happy: '😈', angry: '😾', sad: '🫥', shock: '😦', ult: '🕸️' },
     desc: "A quiet puppeteer, Yuki's twin sister. Your own pieces will turn on you.",
     ult: { name: 'Puppet Strings', text: 'Takes control of one of your knights or bishops. Her meter fills slowly.', fx: 'steal', charge: 0.55, shout: 'Dance for me.' },
@@ -253,7 +253,7 @@ export const CHARS = {
   },
   /* ---- the antagonists: the people behind the tournament ---- */
   shion: {
-    id: 'shion', female: true, name: 'Shion', color: '#4f7a00', glow: '#c6ff3d', img: '/assets/chess/shion.jpg', pieces: 'venom', motion: 'ooze', trail: 'venom', full: '/assets/chess/shion-full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 19, depth: 13, level: 'Expert', villain: true,
+    id: 'shion', female: true, name: 'Shion', color: '#4f7a00', glow: '#c6ff3d', img: '/assets/characters/shion/portrait.jpg', pieces: 'venom', motion: 'ooze', trail: 'venom', full: '/assets/characters/shion/full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 19, depth: 13, level: 'Expert',
     emoji: { idle: '😊', happy: '😈', angry: '😒', sad: '😣', shock: '😳', ult: '🧪' },
     desc: "Kyo's smiling lieutenant. Her poison takes its time.",
     ult: { name: 'Venom Kiss', text: 'Poisons two of your knights, bishops or rooks. Any still on the same square when her next turn starts withers away.', fx: 'poison', charge: 0.9, shout: 'Sweet dreams~' },
@@ -273,16 +273,16 @@ export const CHARS = {
     },
   },
   kyo: {
-    id: 'kyo', name: 'Kyo', color: '#5a0010', glow: '#d1002c', img: '/assets/chess/kyo.jpg',
+    id: 'kyo', name: 'Kyo', color: '#5a0010', glow: '#d1002c', img: '/assets/characters/kyo/portrait.jpg',
     // a portrait per mood (the battle panel swaps to it); calm uses `img`
-    moods: { happy: '/assets/chess/kyo-happy.jpg', angry: '/assets/chess/kyo-angry.jpg', shock: '/assets/chess/kyo-shock.jpg', sad: '/assets/chess/kyo-sad.jpg', ult: '/assets/chess/kyo-ult.jpg',
-      mask: '/assets/chess/kyo-mask.jpg',
+    moods: { happy: '/assets/characters/kyo/happy.jpg', angry: '/assets/characters/kyo/angry.jpg', shock: '/assets/characters/kyo/shock.jpg', sad: '/assets/characters/kyo/sad.jpg', ult: '/assets/characters/kyo/ult.jpg',
+      mask: '/assets/characters/kyo/mask.jpg',
       // mask: while losing badly he hides behind a smiling mask (defeated, it breaks into `sad`); hopeless: story only, when he finally loses hope
-      hopeless: '/assets/chess/kyo-hopeless.jpg' },
-    pieces: 'chains', motion: 'drag', full: '/assets/chess/kyo-full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 20, depth: 16, level: 'Master', villain: true,
+      hopeless: '/assets/characters/kyo/hopeless.jpg' },
+    pieces: 'chains', motion: 'drag', full: '/assets/characters/kyo/full.jpg', fullPending: true, art: 'color', focus: '50% 40%', skill: 20, depth: 16, level: 'Master', villain: true,
     emoji: { idle: '😐', happy: '😏', angry: '😠', sad: '😶', shock: '😮', ult: '⛓️' },
     desc: 'The masked founder of the tournament. To him, every player is a piece.',
-    ult: { name: 'Iron Dominion', text: "Chains two of your strongest pieces: they can't move for your next two turns.", fx: 'seal', charge: 0.85, shout: 'Kneel in chains.', img: '/assets/chess/kyo-ult.jpg' },
+    ult: { name: 'Iron Dominion', text: "Chains two of your strongest pieces: they can't move for your next two turns.", fx: 'seal', charge: 0.85, shout: 'Kneel in chains.', img: '/assets/characters/kyo/ult.jpg' },
     say: {
       start: 'So you are the piece that refused to fall.',
       metBeaten: '{w} times you have defied me. It will not become a habit.',
@@ -301,7 +301,7 @@ export const CHARS = {
 
   /* ---- coming soon: shown in Free Battle as locked cards, hidden everywhere else (`locked: true`) ---- */
   erika: {
-    id: 'erika', female: true, name: 'Erika', locked: true, color: '#3b4f74', glow: '#7f9cc4', img: '/assets/chess/erika.jpg', pieces: 'rain', motion: 'rain', trail: 'rainpool', art: 'color', focus: '50% 35%', skill: 7, depth: 6, level: 'Medium',
+    id: 'erika', female: true, name: 'Erika', locked: true, color: '#3b4f74', glow: '#7f9cc4', img: '/assets/characters/erika/portrait.jpg', pieces: 'rain', motion: 'rain', trail: 'rainpool', art: 'color', focus: '50% 35%', skill: 7, depth: 6, level: 'Medium',
     emoji: { idle: '🌧️', happy: '🙂', angry: '😣', sad: '😢', shock: '😮', ult: '☔' },
     desc: 'Rina Erika, a melancholy girl who carries the rain with her. She wears you down, drop by drop.',
     ult: { name: 'Downpour', text: 'Floods the two empty squares your pieces most want to reach: you can\'t move onto them for your next two turns.', fx: 'flood', charge: 1, shout: 'Let it pour.' },
@@ -312,7 +312,7 @@ export const CHARS = {
     },
   },
   melati: {
-    id: 'melati', female: true, name: 'Melati', locked: true, color: '#7a1f2b', glow: '#e3b23c', img: '/assets/chess/melati.jpg', pieces: 'songket', motion: 'weave', art: 'color', focus: '50% 35%', skill: 12, depth: 9, level: 'Hard',
+    id: 'melati', female: true, name: 'Melati', locked: true, color: '#7a1f2b', glow: '#e3b23c', img: '/assets/characters/melati/portrait.jpg', pieces: 'songket', motion: 'weave', art: 'color', focus: '50% 35%', skill: 12, depth: 9, level: 'Hard',
     emoji: { idle: '🙂', happy: '😌', angry: '😠', sad: '😔', shock: '😮', ult: '🌼' },
     desc: 'A graceful Malay player whose traps close like a woven songket pattern.',
     ult: { name: 'Tenunan', text: 'Ties your two most valuable pieces together with a gold thread for three turns: move one, and the other is lost.', fx: 'bond', charge: 0.8, shout: 'Every thread has its place.' },
@@ -323,7 +323,7 @@ export const CHARS = {
     },
   },
   ai: {
-    id: 'ai', female: true, name: 'AI-0', locked: true, color: '#0b5f55', glow: '#00e5c7', img: '/assets/chess/ai.jpg', pieces: 'wireframe', motion: 'glitch', art: 'color', focus: '50% 35%', skill: 20, depth: 16, level: 'Master',
+    id: 'ai', female: true, name: 'AI-0', locked: true, color: '#0b5f55', glow: '#00e5c7', img: '/assets/characters/ai/portrait.jpg', pieces: 'wireframe', motion: 'glitch', art: 'color', focus: '50% 35%', skill: 20, depth: 16, level: 'Master',
     emoji: { idle: '🤖', happy: '🙂', angry: '😐', sad: '😶', shock: '😮', ult: '💠' },
     desc: 'A chess engine given a body. She plays perfectly, and is trying to understand why you enjoy losing.',
     ult: { name: 'Factory Reset', text: 'Sends two of your most advanced pieces back to their starting squares, undoing all their progress.', fx: 'reset', charge: 0.8, shout: 'Restoring default settings.' },
@@ -364,7 +364,7 @@ export const CHARS = {
     },
   },
   rai: {
-    id: 'rai', name: 'Rai', locked: true, color: '#1a3a8f', glow: '#3d7bff', img: '/assets/chess/rai.jpg', pieces: 'spark',
+    id: 'rai', name: 'Rai', locked: true, color: '#1a3a8f', glow: '#3d7bff', img: '/assets/characters/rai/portrait.jpg', pieces: 'spark',
     // his set evolves the more games he plays (as your opponent, as you, or in Spectate); art for later stages falls back to Spark
     evolve: [
       { set: 'spark', name: 'Spark', games: 0, text: 'His starter set: blue lacquer, gold trim, a few lightning veins.' },

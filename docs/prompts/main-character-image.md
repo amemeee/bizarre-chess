@@ -1,10 +1,10 @@
 # Main character image prompt
 
-Image-generation prompt for a character's **main portrait**: the square image used on cards, in battle, story scenes and cut-ins (`public/assets/chess/<name>.jpg`). It copies the crop, pose and ink aura of `ren.jpg` so every portrait in the cast lines up.
+Image-generation prompt for a character's **main portrait**: the square image used on cards, in battle, story scenes and cut-ins (`public/assets/characters/<name>/portrait.jpg`). It copies the crop, pose and ink aura of `characters/ren/portrait.jpg` so every portrait in the cast lines up.
 
 **Attach two images, in this order:**
 1. The character's design (their design sheet, or an older portrait).
-2. `public/assets/chess/ren.jpg`, the template for the crop, pose and ink aura.
+2. `public/assets/characters/ren/portrait.jpg`, the template for the crop, pose and ink aura.
 
 Fill in the `[brackets]`. A filled-in example (AI-0) is at the bottom.
 

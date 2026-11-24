@@ -26,6 +26,9 @@ const ITEMS = [
   { key: 'stats', title: 'Profile', text: 'Your character, record, achievements and titles.', glow: '#e8e4ff' },
 ]
 const sel = ref(0)
+// the wallpaper: one of these, picked at random each time the menu opens
+const COVERS = ['/assets/ui/cover.jpg', '/assets/ui/cover-kyo.jpg']
+const cover = COVERS[Math.floor(Math.random() * COVERS.length)]
 const cur = computed(() => ITEMS[sel.value])
 const go = i => emit(ITEMS[i].key)
 
@@ -55,7 +58,7 @@ onUnmounted(() => window.removeEventListener('keydown', key))
 <template>
   <section class="lobby" :style="{ '--g': cur.glow }">
     <!-- the scene -->
-    <img class="scene" src="/assets/chess/ren-cover.jpg" alt="" draggable="false">
+    <img class="scene" :src="cover" alt="" draggable="false">
     <i class="tint" />
 
     <!-- top bar -->

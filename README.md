@@ -25,7 +25,7 @@ Each finished game saves `character_id`, `result`, `moves` and `ultimates_faced`
 | Ren | Hard | Time Skip: you lose your next turn |
 | Yuki | Medium | Blizzard: shatters two of your pawns |
 
-Custom portraits: add `public/assets/chess/<id>-<mood>.webp` (moods: idle, happy, angry, sad, shock, ult). Emoji are the fallback.
+Custom portraits: add `public/assets/characters/<name>/<id>-<mood>.webp` (moods: idle, happy, angry, sad, shock, ult). Emoji are the fallback.
 
 ## Built with
 - [Vue 3](https://vuejs.org), [Vite](https://vitejs.dev), [Supabase](https://supabase.com)
